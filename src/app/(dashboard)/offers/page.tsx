@@ -5,11 +5,12 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFindManyOffer, useCountOffer, useUpdateOffer } from "@/lib/hooks";
 import { useSearchStore } from "@/lib/stores/search-store";
 import { OfferCard } from "@/components/offers/OfferCard";
+import { OfferCardSkeleton } from "@/components/offers/OfferCardSkeleton";
 import { OfferFilters } from "@/components/offers/OfferFilters";
 
 /**
@@ -129,10 +130,12 @@ export default function OffersPage() {
       {/* Barre de filtres */}
       <OfferFilters />
 
-      {/* Etat de chargement */}
+      {/* Skeleton de chargement : grille de 6 cartes pendant isLoading */}
       {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <OfferCardSkeleton key={i} />
+          ))}
         </div>
       )}
 

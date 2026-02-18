@@ -2,9 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Loader2, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchConfigCard } from "@/components/search/SearchConfigCard";
+import { SearchConfigCardSkeleton } from "@/components/search/SearchConfigCardSkeleton";
 import { SearchConfigForm } from "@/components/search/SearchConfigForm";
 import {
   useSearchConfigStore,
@@ -181,10 +182,12 @@ export default function SearchesPage() {
         </Button>
       </div>
 
-      {/* Etat de chargement */}
+      {/* Skeleton de chargement : grille de 4 cartes pendant isLoading */}
       {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SearchConfigCardSkeleton key={i} />
+          ))}
         </div>
       )}
 

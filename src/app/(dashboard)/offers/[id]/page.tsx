@@ -13,7 +13,6 @@ import {
   ExternalLink,
   MapPin,
   Bot,
-  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useFindUniqueOffer, useUpdateOffer } from "@/lib/hooks";
+import { OfferDetailSkeleton } from "@/components/offers/OfferDetailSkeleton";
 
 /**
  * Role : Page detail d'une offre d'emploi
@@ -110,13 +110,9 @@ export default function OfferDetailPage() {
     });
   };
 
-  // Etat de chargement
+  // Skeleton affiché pendant le chargement de l'offre
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <OfferDetailSkeleton />;
   }
 
   // Offre non trouvee

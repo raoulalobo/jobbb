@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Save, Loader2, Upload, Camera } from "lucide-react";
+import { Save, Loader2, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { authClient } from "@/lib/auth-client";
 import { useUiStore } from "@/lib/stores/ui-store";
 import { SkillsInput } from "./SkillsInput";
+import { ProfileFormSkeleton } from "./ProfileFormSkeleton";
 import {
   ExperienceList,
   type ExperienceItem,
@@ -273,12 +274,9 @@ export function ProfileForm() {
     setProfile((prev) => ({ ...prev, [field]: value }));
   }
 
+  // Skeleton affiché pendant le chargement du profil existant
   if (isLoadingProfile) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <ProfileFormSkeleton />;
   }
 
   return (
