@@ -15,9 +15,19 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # URL factice : prisma generate n'a pas besoin de connexion reelle
+      # Variables factices pour le build CI (pas de connexion reelle necessaire)
       DATABASE_URL: "postgresql://user:pass@localhost:5432/fake"
       DIRECT_URL: "postgresql://user:pass@localhost:5432/fake"
+      NEXT_PUBLIC_SUPABASE_URL: "https://fake.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "fake-anon-key"
+      SUPABASE_SERVICE_ROLE_KEY: "fake-service-role-key"
+      AUTH_SECRET: "fake-secret-for-ci-build-only"
+      BETTER_AUTH_URL: "http://localhost:3000"
+      NEXT_PUBLIC_BETTER_AUTH_URL: "http://localhost:3000"
+      ANTHROPIC_API_KEY: "sk-ant-fake"
+      INNGEST_EVENT_KEY: "fake"
+      INNGEST_SIGNING_KEY: "fake"
+      RESEND_API_KEY: "re_fake"
 
     steps:
       # Recuperation du code source
