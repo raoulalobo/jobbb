@@ -61,49 +61,48 @@ SaaS Next.js permettant a des candidats de configurer leurs criteres de recherch
 5. [x] Store Zustand `search-config-store` pour l'etat du formulaire
 6. [ ] **Test** : CRUD criteres -> verifier en BDD
 
-### Phase 4 : Agent de scraping
-1. Installer `@anthropic-ai/claude-agent-sdk` + `@playwright/mcp`
-2. Creer les tools : `search-jobs`, `scrape-offer`
-3. Creer l'orchestrateur agent (`lib/agent/orchestrator.ts`)
-4. Creer l'API route `/api/agent/search` (lance l'agent avec les criteres)
-5. Stocker les offres trouvees en BDD (dedoublonnees par userId + url)
-6. **Test** : lancer une recherche sur WTTJ -> verifier offres en BDD
+### Phase 4 : Agent de scraping [TERMINEE]
+- [x] Installer `@anthropic-ai/claude-agent-sdk` + Playwright MCP
+- [x] Creer l'orchestrateur agent (`lib/agent/orchestrator.ts`)
+- [x] Creer l'API route `/api/agent/search` (lance l'agent avec les criteres)
+- [x] Stocker les offres en BDD (dedoublonnees par userId + url)
+- [x] Scraping detail de l'offre (description complete via heuristique DOM)
+- [x] Nettoyage description via Claude Haiku (post-processing)
 
-### Phase 5 : Liste et detail des offres
-1. Page `/offers` : liste paginee avec filtres (source, date, nouveau, bookmarked)
-2. Page `/offers/[id]` : detail complet de l'offre
-3. Marquer comme lu (isNew -> false) a l'ouverture
-4. Bouton bookmark
-5. **Test** : naviguer dans les offres -> filtrer -> ouvrir detail
+### Phase 5 : Liste et detail des offres [TERMINEE]
+- [x] Page `/offers` : liste paginee avec filtres (source, contrat, nouveau, favori, recherche texte)
+- [x] Page `/offers/[id]` : detail complet de l'offre avec skeleton
+- [x] Marquer comme lu (isNew -> false) a l'ouverture
+- [x] Toggle bookmark
+- [x] Skeletons (OfferCardSkeleton, OfferDetailSkeleton)
 
-### Phase 6 : Adaptation CV + Lettre de motivation
-1. Creer les tools agent : `adapt-cv`, `adapt-letter`
-2. Boutons "Adapter mon CV" et "Generer lettre" sur la page offre
-3. Preview markdown du CV/lettre generes
-4. Sauvegarder en tant qu'Application (status: draft)
-5. Export PDF via Supabase Storage
-6. **Test** : ouvrir offre -> adapter CV -> preview -> sauvegarder
+### Phase 6 : Generation CV + Lettre de motivation [TERMINEE]
+- [x] `lib/agent/generate-application.ts` : generation via Claude Sonnet 4.6
+- [x] Bouton "Postuler avec l'IA" sur la page detail offre
+- [x] POST `/api/agent/apply` : endpoint de generation + sauvegarde Application
+- [x] Contrainte unique [userId, offerId] sur Application (upsert)
+- [x] Redirection vers `/applications` apres generation
 
-### Phase 7 : Candidature assistee
-1. Creer le tool agent : `fill-form` (Playwright + Sonnet pour formulaires)
-2. Bouton "Postuler" -> ouvre un flow de confirmation
-3. L'agent remplit le formulaire, montre un apercu, attend confirmation
-4. Mettre a jour le statut Application (draft -> sent)
-5. **Test** : postuler sur WTTJ -> verifier formulaire rempli (sans soumission reelle d'abord)
+### Phase 7 : Candidature assistee [REPORTEE]
+- [ ] Remplissage automatique de formulaire (Playwright + Sonnet)
+- Reporte apres Phase 9 — complexite elevee, necessite test en environnement stable
 
-### Phase 8 : Suivi des candidatures
-1. Page `/applications` : liste avec statuts (draft, ready, sent, interview, rejected, accepted)
-2. Modifier le statut manuellement
-3. Voir le CV et la lettre associes
-4. Notes libres par candidature
-5. **Test** : creer candidature -> changer statuts -> verifier
+### Phase 8 : Suivi des candidatures [TERMINEE]
+- [x] Page `/applications` : tableau Tanstack Table avec tri et filtre par statut
+- [x] `ApplicationStatusBadge` : 6 statuts (draft/ready/sent/interview/rejected/accepted)
+- [x] Page `/applications/[id]` : modification statut + notes + onglets CV/Lettre
+- [x] Skeletons (ApplicationsTableSkeleton, ApplicationDetailSkeleton)
 
-### Phase 9 : Scheduler Inngest
-1. Installer et configurer Inngest
-2. Creer la fonction `daily-search` (cron configurable par user)
-3. API route `/api/inngest` pour le serve
-4. Page settings : toggle scheduler + configurer heure
-5. **Test** : activer scheduler -> verifier execution Inngest -> offres ajoutees
+### Phase 9 : Scheduler Inngest [TERMINEE]
+- [x] Installer Inngest v3
+- [x] `src/lib/inngest/client.ts` : client + schema typesafe des evenements
+- [x] `src/lib/inngest/functions/scheduled-search.ts` : cron toutes les minutes, detecte les users a lancer
+- [x] `src/lib/inngest/functions/run-user-search.ts` : handler event, scraping + upsert offres par user
+- [x] `src/app/api/inngest/route.ts` : serve GET/POST/PUT pour Inngest Cloud
+- [x] `src/components/settings/ScheduleConfigForm.tsx` : formulaire isActive/heure/minute/timezone
+- [x] `src/components/settings/ScheduleConfigSkeleton.tsx` : skeleton du formulaire
+- [x] `src/app/(dashboard)/settings/page.tsx` : page parametres complete
+- [ ] **Activation requise** : configurer INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY + enregistrer l'URL dans le dashboard Inngest
 
 ### Phase 10 : Notifications email
 1. Configurer Resend + React Email
