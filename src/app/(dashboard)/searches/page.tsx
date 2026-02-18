@@ -158,7 +158,7 @@ export default function SearchesPage() {
     onSuccess: () => {
       toast.success("Recherche lancee avec succes");
       // Rafraichir les offres apres scraping
-      queryClient.invalidateQueries({ queryKey: ["offers"] });
+      queryClient.invalidateQueries({ queryKey: ["Offer"] });
     },
     onError: (error: Error) => {
       toast.error(error.message);
