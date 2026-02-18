@@ -1,0 +1,235 @@
+// Schema ZenStack pour JobAgent
+// Definit les modeles, relations et policies d'acces
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+plugin hooks {
+  provider = '@zenstackhq/tanstack-query'
+  target   = 'react'
+  output   = 'src/lib/hooks'
+}
+
+plugin zod {
+  provider = '@core/zod'
+}
+
+// === MODELES PRINCIPAUX ===
+
+/**
+ * Role : Utilisateur de l'application
+ * Relations : profil, criteres de recherche, offres, candidatures, sessions, comptes
+ * Policies : lecture par soi-meme ou admin, modification par soi-meme, suppression par admin
+ */
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          String    @default("candidate") // "candidate" | "admin"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  profile       Profile?
+  searchConfigs SearchConfig[]
+  offers        Offer[]
+  applications  Application[]
+  sessions      Session[]
+  accounts      Account[]
+
+  // Policies d'acces : un utilisateur voit ses propres donnees, l'admin voit tout
+  @@allow('read', auth() == this || auth().role == 'admin')
+  @@allow('update', auth() == this)
+  @@allow('delete', auth().role == 'admin')
+}
+
+/**
+ * Role : Profil professionnel du candidat
+ * Relations : lie a un User unique
+ * Contient : titre, competences, experiences, formation, CV
+ */
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String                    // Ex: "Developpeur React Senior"
+  phone       String?
+  location    String?
+  skills      Json     @default("[]")   // ["React", "Node.js", ...]
+  experiences Json     @default("[]")   // [{company, title, dates, description}]
+  education   Json     @default("[]")   // [{school, degree, dates}]
+  summary     String?                   // Resume professionnel
+  cvUrl       String?                   // URL Supabase Storage vers le CV
+  linkedinEmail    String?              // Email de connexion LinkedIn (pour scraping authentifie)
+  linkedinPassword String?              // Mot de passe LinkedIn (pour scraping authentifie)
+  updatedAt   DateTime @updatedAt
+
+  // Seul le proprietaire peut modifier son profil, l'admin peut lire
+  @@allow('all', auth().id == userId)
+  @@allow('read', auth().role == 'admin')
+}
+
+/**
+ * Role : Configuration de recherche d'emploi
+ * Relations : lie a un User
+ * Contient : mots-cles, localisation, sites cibles, type de contrat, filtres
+ */
+model SearchConfig {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String                    // Ex: "Ma recherche React Paris"
+  query           String                    // Ex: "developpeur React"
+  location        String                    // Ex: "Paris"
+  sites           Json     @default("[\"linkedin\"]") // Sites a scraper : ["linkedin"]
+  remote          Boolean  @default(false)
+  salaryMin       Int?
+  contractTypes   Json     @default("[\"CDI\"]")  // Types de contrat : ["CDI", "freelance"]
+  excludeKeywords Json?                     // Mots-cles a exclure : ["junior", "stage"]
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Seul le proprietaire gere ses configurations
+  @@allow('all', auth().id == userId)
+  @@allow('read', auth().role == 'admin')
+}
+
+/**
+ * Role : Offre d'emploi trouvee par l'agent
+ * Relations : lie a un User, peut avoir des Application
+ * Dedoublonnage : unique par userId + url
+ */
+model Offer {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  company      String
+  location     String
+  url          String
+  description  String
+  salary       String?
+  contractType String?
+  source       String                    // "wttj" | "indeed" | "linkedin"
+  isNew        Boolean       @default(true)
+  isBookmarked Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  applications Application[]
+
+  // Dedoublonnage : une offre unique par user et URL
+  @@unique([userId, url])
+  @@allow('all', auth().id == userId)
+  @@allow('read', auth().role == 'admin')
+}
+
+/**
+ * Role : Candidature a une offre
+ * Relations : lie a un User et une Offer
+ * Contient : CV adapte, lettre de motivation, statut de suivi
+ */
+model Application {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offerId       String
+  offer         Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  cvContent     String                    // CV adapte en markdown
+  letterContent String                    // Lettre de motivation adaptee en markdown
+  cvPdfUrl      String?                   // PDF genere stocke dans Supabase Storage
+  letterPdfUrl  String?
+  status        String   @default("draft") // draft | ready | sent | interview | rejected | accepted
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Seul le proprietaire gere ses candidatures
+  @@allow('all', auth().id == userId)
+  @@allow('read', auth().role == 'admin')
+}
+
+/**
+ * Role : Configuration du scheduler de recherche automatique
+ * Relations : lie a un User (un seul par user)
+ * Contient : heure, minute, timezone, etat actif/inactif
+ */
+model ScheduleConfig {
+  id       String  @id @default(cuid())
+  userId   String  @unique
+  hour     Int     @default(8)
+  minute   Int     @default(0)
+  timezone String  @default("Europe/Paris")
+  isActive Boolean @default(false)
+
+  @@allow('all', auth().id == userId)
+  @@allow('read', auth().role == 'admin')
+}
+
+// === MODELES BETTER AUTH ===
+// Ces modeles sont requis par Better Auth pour gerer les sessions et comptes
+
+/**
+ * Role : Session d'authentification
+ * Gere par Better Auth automatiquement
+ */
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  @@allow('all', auth().id == userId)
+}
+
+/**
+ * Role : Compte d'authentification (provider OAuth ou email/password)
+ * Gere par Better Auth automatiquement
+ */
+model Account {
+  id                    String   @id
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@allow('all', auth().id == userId)
+}
+
+/**
+ * Role : Verification email / tokens
+ * Gere par Better Auth automatiquement
+ */
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Accessible en lecture/creation par tous (necessaire pour la verification)
+  @@allow('create,read', true)
+}
