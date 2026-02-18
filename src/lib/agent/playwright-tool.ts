@@ -311,12 +311,173 @@ export async function playwrightExtractLinks(
 }
 
 /**
- * Role : Extraire le contenu textuel principal d'une page d'offre d'emploi
+ * Role : Extraire le texte d'un element specifique via une liste de selecteurs CSS
+ * Essaie chaque selecteur dans l'ordre et retourne le premier match valide (> 100 chars)
+ * Parametre sessionName : identifiant de la session
+ * Parametre selectors : liste de selecteurs CSS a essayer (du plus specifique au plus generique)
+ * Parametre maxLength : longueur max du texte retourne (defaut : 8000 chars)
+ * Retourne : contenu textuel tronque, ou chaine vide si aucun match
+ *
+ * Utilise principalement pour extraire la description complete d'une offre LinkedIn :
+ *   Selecteurs tentes : ".jobs-description-content__text", ".jobs-box__html-content", etc.
+ *
+ * Exemple :
+ *   const desc = await playwrightGetText("session1", [
+ *     ".jobs-description-content__text",
+ *     ".jobs-description__content",
+ *     "#job-details",
+ *   ]);
+ *   // desc = "Nous recherchons un developpeur React senior..."
+ */
+export async function playwrightGetText(
+  sessionName: string,
+  selectors: string[],
+  maxLength = 8000
+): Promise<string> {
+  const page = getPage(sessionName);
+
+  for (const selector of selectors) {
+    try {
+      const el = page.locator(selector).first();
+
+      // Verifier que l'element est visible et contient du texte substantiel
+      if (await el.isVisible({ timeout: 2000 })) {
+        let text = await el.innerText();
+
+        // Ignorer les elements avec trop peu de texte (probablement pas la description)
+        if (text.trim().length > 100) {
+          if (text.length > maxLength) {
+            text = text.substring(0, maxLength) + "\n... (tronque)";
+          }
+          return text.trim();
+        }
+      }
+    } catch {
+      // Selecteur non trouve ou timeout, essayer le suivant
+    }
+  }
+
+  // Aucun selecteur n'a fonctionne
+  return "";
+}
+
+/**
+ * Role : Extraire la description complete d'une offre d'emploi via heuristiques
+ * Parametre sessionName : identifiant de la session
+ * Parametre maxLength : longueur max du texte retourne (defaut : 8000 chars)
+ * Retourne : description complete de l'offre, ou chaine vide si non trouvee
+ *
+ * Strategie en 3 etapes (executee dans le contexte de la page via page.evaluate) :
+ *
+ *   1. Selecteurs semantiques connus : cherche des elements dont la classe ou l'id
+ *      contient "description", "job-detail", "job-content" (independant des noms
+ *      de classes specifiques qui changent frequemment sur LinkedIn).
+ *
+ *   2. Heuristique de densite textuelle : parmi tous les div/section/article
+ *      (hors nav/header/footer/aside), trouve le bloc avec le meilleur ratio
+ *      texte/enfants. Ce bloc est presque toujours la description du poste.
+ *
+ *   3. Fallback : retourne le innerText de <main> ou <body> si les deux
+ *      premieres strategies echouent.
+ *
+ * Avantage par rapport aux selecteurs CSS statiques : resilient aux changements
+ * de noms de classes LinkedIn/Indeed/WTTJ.
+ *
+ * Exemple :
+ *   const desc = await playwrightGetJobDescription("session1");
+ *   // desc = "Nous recherchons un developpeur React senior..."
+ */
+export async function playwrightGetJobDescription(
+  sessionName: string,
+  maxLength = 8000
+): Promise<string> {
+  const page = getPage(sessionName);
+
+  const description = await page.evaluate((max: number) => {
+    // --- Strategie 1 : selecteurs semantiques independants des noms de classes ---
+    // Cherche des elements dont classe ou id contient des mots-cles de description
+    const semanticPatterns = [
+      "[class*='description']",
+      "[id*='description']",
+      "[id*='job-detail']",
+      "[class*='job-detail']",
+      "[class*='job-content']",
+      "[id*='job-content']",
+      "[class*='offer-description']",
+      "[data-job-description]",
+    ];
+
+    for (const pattern of semanticPatterns) {
+      try {
+        const el = document.querySelector(pattern) as HTMLElement | null;
+        if (el) {
+          const text = el.innerText.trim();
+          // Valide uniquement si le texte est substantiel (> 200 chars = vraie description)
+          if (text.length > 200) {
+            return text.substring(0, max);
+          }
+        }
+      } catch {
+        // Selecteur invalide, continuer
+      }
+    }
+
+    // --- Strategie 2 : heuristique de densite textuelle ---
+    // Trouve le bloc DOM avec le meilleur ratio texte/structure
+    // Un bloc de description a beaucoup de texte et peu d'elements enfants directs
+    const excludeTags = new Set(["NAV", "HEADER", "FOOTER", "ASIDE", "SCRIPT", "STYLE"]);
+
+    const candidates = Array.from(
+      document.querySelectorAll("div, section, article")
+    )
+      .filter((el) => {
+        // Exclure les elements dans nav/header/footer/aside
+        let ancestor = el.parentElement;
+        while (ancestor) {
+          if (excludeTags.has(ancestor.tagName)) return false;
+          ancestor = ancestor.parentElement;
+        }
+        // Garder seulement les elements avec du texte substantiel
+        return (el as HTMLElement).innerText.trim().length > 200;
+      })
+      .map((el) => {
+        const text = (el as HTMLElement).innerText.trim();
+        // Ratio densite : longueur du texte / nombre d'enfants directs
+        // Un paragraphe de description a un ratio eleve (beaucoup de texte, peu d'enfants)
+        const density = text.length / Math.max(el.children.length, 1);
+        return { el, text, density };
+      })
+      // Trier par densite decroissante (le plus dense d'abord)
+      .sort((a, b) => b.density - a.density)
+      .slice(0, 5); // Garder les 5 meilleurs candidats
+
+    for (const { text } of candidates) {
+      if (text.length > 200) {
+        return text.substring(0, max);
+      }
+    }
+
+    // --- Strategie 3 : fallback sur le contenu principal ---
+    const main =
+      document.querySelector("main") ||
+      document.querySelector('[role="main"]') ||
+      document.querySelector("article") ||
+      document.body;
+
+    const fallbackText = main ? (main as HTMLElement).innerText.trim() : "";
+    return fallbackText.substring(0, max);
+  }, maxLength);
+
+  return description || "";
+}
+
+/**
+ * Role : Extraire le contenu textuel principal d'une page (fallback generique)
  * Parametre sessionName : identifiant de la session
  * Retourne : contenu textuel tronque a 5000 caracteres
  *
  * Cherche le contenu dans cet ordre : <article>, <main>, [role="main"], <body>
- * Utilise pour recuperer les details d'une offre specifique.
+ * Conserve pour compatibilite. Preferer playwrightGetJobDescription pour les offres.
  */
 export async function playwrightExtractContent(
   sessionName: string
@@ -330,7 +491,7 @@ export async function playwrightExtractContent(
       document.querySelector("main") ||
       document.querySelector('[role="main"]') ||
       document.body;
-    return main ? main.innerText : "";
+    return main ? (main as HTMLElement).innerText : "";
   });
 
   // Tronquer pour economiser les tokens

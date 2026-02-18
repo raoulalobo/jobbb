@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -13,6 +13,7 @@ import {
   ExternalLink,
   MapPin,
   Bot,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useFindUniqueOffer, useUpdateOffer } from "@/lib/hooks";
 import { OfferDetailSkeleton } from "@/components/offers/OfferDetailSkeleton";
+import { useMutation } from "@tanstack/react-query";
 
 /**
  * Role : Page detail d'une offre d'emploi
@@ -69,6 +71,7 @@ export default function OfferDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Ref pour eviter le double appel du marquage lu en React Strict Mode
   const hasMarkedAsRead = useRef(false);
@@ -100,6 +103,30 @@ export default function OfferDetailPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer?.id, offer?.isNew]);
+
+  // Mutation : lancer la generation de candidature IA via /api/agent/apply
+  const applyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/agent/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerId: id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erreur lors de la generation");
+      return json as { data: { applicationId: string }; message: string };
+    },
+    onSuccess: (json) => {
+      toast.success(json.message);
+      // Rafraichir le compteur de candidatures dans le dashboard
+      queryClient.invalidateQueries({ queryKey: ["Application"] });
+      // Rediriger vers la liste des candidatures
+      router.push("/applications");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
 
   // Toggle le bookmark de l'offre
   const handleToggleBookmark = () => {
@@ -199,10 +226,23 @@ export default function OfferDetailPage() {
               {offer.isBookmarked ? "Favori" : "Ajouter aux favoris"}
             </Button>
 
-            {/* Placeholder Phase 6 : postuler avec l'IA (desactive) */}
-            <Button variant="outline" disabled>
-              <Bot className="mr-2 h-4 w-4" />
-              Postuler avec l&apos;IA
+            {/* Bouton postulation IA : genere CV + lettre via Claude, cree l'Application */}
+            <Button
+              variant="outline"
+              onClick={() => applyMutation.mutate()}
+              disabled={applyMutation.isPending}
+            >
+              {applyMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generation en cours...
+                </>
+              ) : (
+                <>
+                  <Bot className="mr-2 h-4 w-4" />
+                  Postuler avec l&apos;IA
+                </>
+              )}
             </Button>
           </div>
 

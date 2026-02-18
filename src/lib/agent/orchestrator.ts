@@ -12,6 +12,7 @@ import {
   playwrightFill,
   playwrightClick,
   playwrightWait,
+  playwrightGetJobDescription,
 } from "./playwright-tool";
 
 /**
@@ -87,6 +88,14 @@ const MAX_PAGES = 3;
 
 /** Nombre de resultats par page LinkedIn */
 const LINKEDIN_RESULTS_PER_PAGE = 25;
+
+/**
+ * Nombre maximum de pages detail a visiter pour enrichir les descriptions.
+ * Limite a 15 pour equilibrer qualite et temps d'execution (~45s supplementaires).
+ * Les 15 premieres offres sont les plus pertinentes (tri LinkedIn par date/pertinence).
+ */
+const MAX_DETAIL_PAGES = 15;
+
 
 /**
  * URLs indicatrices du resultat du login LinkedIn.
@@ -312,8 +321,9 @@ async function scrapeSite(
       allLinks.push(...pageLinks);
     }
 
-    // 5. Fermer le navigateur (une seule fois apres toutes les pages)
-    await playwrightClose(sessionName);
+    // Note : le navigateur N'est PAS ferme ici.
+    // Il reste ouvert pour que runSearchAgent puisse scraper les pages detail.
+    // La fermeture est geree par runSearchAgent apres l'enrichissement des descriptions.
 
     // Si aucun snapshot n'a ete capture, retourner null
     if (allSnapshots.length === 0) {
@@ -448,6 +458,203 @@ Regles:
 }
 
 /**
+ * Role : Nettoyer une description d'offre LinkedIn en supprimant les elements parasites
+ * Parametre raw : texte brut extrait de la page LinkedIn (inclut UI, metadata, promo)
+ * Retourne : description nettoyee, limitee a 5000 chars pour eviter le bruit de fin de page
+ *
+ * Supprime les lignes correspondant a ces categories de bruit LinkedIn :
+ *   - Metadonnees d'offre : "37 candidats", "Republication il y a 2h", "Promue par un recruteur"
+ *   - Boutons UI : "Enregistrer", "Postuler", "Candidature simplifiee"
+ *   - Infos de modalite : "Hybride", "Temps plein" (ligne seule sans contexte)
+ *   - Promotion Premium : "Essayer Premium", "Decouvrez comment vous vous positionnez"
+ *   - Contacts recruteur : "Personnes que vous pouvez contacter", "Rencontrez l'equipe"
+ *   - Entetes de section LinkedIn : "A propos de l'offre d'emploi" (header sans valeur)
+ *   - Bruit de fin : "X sur LinkedIn", "Aimerez-vous travailler ici"
+ *
+ * Exemple :
+ *   cleanLinkedInDescription("37 candidats\nHybride\nNous recherchons un dev React...\n...")
+ *   // => "Nous recherchons un dev React..."
+ */
+/**
+ * Modele Claude utilise pour le nettoyage des descriptions d'offres.
+ * Haiku : suffisamment capable pour de l'extraction/nettoyage de texte,
+ * beaucoup moins cher que Sonnet (~$0.001 par offre vs ~$0.005).
+ */
+const CLEANUP_MODEL = "claude-haiku-4-5-20251001";
+
+/**
+ * Role : Nettoyer et formater le texte brut d'une page LinkedIn via Claude Haiku
+ * Parametre client : client Anthropic initialise
+ * Parametre rawText : texte brut extrait par Playwright (avec bruit UI, footer, etc.)
+ * Parametre offerTitle : titre de l'offre (contexte pour Claude)
+ * Retourne : description propre en markdown, ou chaine vide en cas d'erreur
+ *
+ * Claude Haiku identifie et conserve uniquement :
+ *   - Le contexte de l'entreprise (bref)
+ *   - Les missions du poste
+ *   - La stack technique / competences requises
+ *   - Le profil recherche
+ * Et supprime : navigation LinkedIn, footer, UI, promotion Premium, contacts recruteur,
+ *   selecteur de langue, mentions legales, emojis decoratifs.
+ *
+ * Cout estime : ~$0.001 par offre (Haiku est ~25x moins cher que Sonnet)
+ *
+ * Exemple :
+ *   const clean = await formatOfferDescription(client, rawText, "Dev React Senior");
+ *   // clean = "## Missions\n- Développer des features React...\n## Stack\n- React, TypeScript..."
+ */
+async function formatOfferDescription(
+  client: Anthropic,
+  rawText: string,
+  offerTitle: string
+): Promise<string> {
+  // Tronquer le texte brut a 6000 chars pour eviter de depasser le contexte de Haiku
+  const truncatedRaw =
+    rawText.length > 6000
+      ? rawText.substring(0, 6000) + "\n... (tronque)"
+      : rawText;
+
+  try {
+    const response = await client.messages.create({
+      model: CLEANUP_MODEL,
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "user",
+          content: `Tu es un assistant qui extrait et formate les descriptions d'offres d'emploi LinkedIn.
+
+Voici le texte brut extrait d'une page LinkedIn pour le poste : "${offerTitle}"
+Ce texte contient le contenu utile MELANGE avec du bruit : navigation LinkedIn, footer, boutons UI,
+promotion Premium, contacts recruteur, selecteur de langue, mentions legales.
+
+TEXTE BRUT :
+${truncatedRaw}
+
+TACHE : Extrais UNIQUEMENT le contenu pertinent de l'offre et formate-le en markdown propre.
+
+Conserve :
+- Contexte / presentation de l'entreprise (2-3 phrases max)
+- Missions et responsabilites du poste
+- Stack technique et competences requises
+- Profil recherche et qualifications
+
+Supprime tout le reste : navigation, footer, boutons, premium, recruteur, langue, legal, emojis decoratifs.
+
+Reponds directement avec le markdown, sans introduction ni commentaire.`,
+        },
+      ],
+    });
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") return "";
+
+    return textBlock.text.trim();
+  } catch (error) {
+    const err = error as Error;
+    console.warn(`[Agent] Erreur formatage Haiku : ${err.message}`);
+    // En cas d'erreur Haiku, retourner le texte brut tronque (pas de perte de donnees)
+    return rawText.substring(0, 3000).trim();
+  }
+}
+
+/**
+ * Role : Visiter les pages detail des offres pour recuperer la description complete
+ * Parametre offers : offres extraites depuis la page de resultats (descriptions courtes)
+ * Parametre sessionName : session Playwright encore ouverte (connectee a LinkedIn)
+ * Retourne : Map { url -> description complete }
+ *
+ * Flow pour chaque offre (jusqu'a MAX_DETAIL_PAGES) :
+ *   1. Naviguer vers l'URL de l'offre
+ *   2. Tenter d'extraire la description via les selecteurs LinkedIn specifiques
+ *   3. Fallback sur playwrightExtractContent (article/main/body) si selecteurs echouent
+ *   4. Pause de 1.5s entre les requetes pour eviter le rate limiting LinkedIn
+ *
+ * En cas d'erreur sur une offre individuelle : log + continuer avec les suivantes.
+ *
+ * Exemple :
+ *   const descriptions = await scrapeOfferDetails(offers, "session-xyz");
+ *   // descriptions.get("https://linkedin.com/jobs/view/123") = "Nous recherchons..."
+ */
+async function scrapeOfferDetails(
+  offers: ScrapedOffer[],
+  sessionName: string,
+  client: Anthropic
+): Promise<Map<string, string>> {
+  const descriptionMap = new Map<string, string>();
+
+  // Limiter aux MAX_DETAIL_PAGES premieres offres (les plus pertinentes)
+  const offersToVisit = offers.slice(0, MAX_DETAIL_PAGES);
+
+  console.log(
+    `[Agent] Enrichissement descriptions : visite de ${offersToVisit.length} pages detail...`
+  );
+
+  for (let i = 0; i < offersToVisit.length; i++) {
+    const offer = offersToVisit[i];
+    if (!offer.url) continue;
+
+    try {
+      console.log(
+        `[Agent] Detail ${i + 1}/${offersToVisit.length} : "${offer.title}" chez "${offer.company}"`
+      );
+
+      // Naviguer vers la page detail de l'offre
+      await playwrightNavigate(sessionName, offer.url);
+
+      // Extraction via heuristiques (selecteurs semantiques + densite textuelle + fallback)
+      // Resilient aux changements de noms de classes LinkedIn
+      const description = await playwrightGetJobDescription(sessionName, 8000);
+
+      if (description && description.length >= 100) {
+        // Nettoyer et reformater via Claude Haiku (supprime bruit UI/footer, formate en markdown)
+        console.log(
+          `[Agent] Detail ${i + 1} : ${description.length} chars bruts → nettoyage Haiku...`
+        );
+        const cleanDescription = await formatOfferDescription(
+          client,
+          description,
+          offer.title
+        );
+
+        if (cleanDescription.length >= 100) {
+          descriptionMap.set(offer.url, cleanDescription);
+          console.log(
+            `[Agent] Detail ${i + 1} : ${description.length} → ${cleanDescription.length} chars apres nettoyage Haiku`
+          );
+        } else {
+          // Fallback : garder le texte brut tronque si Haiku retourne trop peu
+          descriptionMap.set(offer.url, description.substring(0, 3000));
+          console.warn(
+            `[Agent] Detail ${i + 1} : Haiku a retourne trop peu (${cleanDescription.length} chars), fallback sur texte brut`
+          );
+        }
+      } else {
+        console.warn(
+          `[Agent] Detail ${i + 1} : description trop courte ou vide, conserve la description initiale`
+        );
+      }
+
+      // Pause entre les requetes pour eviter le rate limiting LinkedIn (1.5s)
+      if (i < offersToVisit.length - 1) {
+        await playwrightWait(sessionName, 1500);
+      }
+    } catch (error) {
+      const err = error as Error;
+      console.warn(
+        `[Agent] Detail ${i + 1} : erreur sur "${offer.title}" : ${err.message}`
+      );
+      // Continuer avec les offres suivantes meme en cas d'erreur
+    }
+  }
+
+  console.log(
+    `[Agent] Enrichissement termine : ${descriptionMap.size}/${offersToVisit.length} descriptions recuperees`
+  );
+
+  return descriptionMap;
+}
+
+/**
  * Role : Executer l'agent de scraping LinkedIn authentifie
  * Parametre criteria : criteres de recherche incluant les identifiants LinkedIn
  * Parametre userId : identifiant de l'utilisateur (pour nommer la session)
@@ -492,23 +699,62 @@ export async function runSearchAgent(
 
   const sessionName = `search-${userId}-linkedin-${Date.now()}`;
 
-  // 1. Scraper LinkedIn (login + navigation + snapshot)
-  const result = await scrapeSite(criteria, sessionName);
+  try {
+    // 1. Scraper LinkedIn (login + navigation + snapshot)
+    // Note : le navigateur reste ouvert apres scrapeSite pour le scraping des details
+    const result = await scrapeSite(criteria, sessionName);
 
-  if (!result) {
-    console.log("[Agent] Aucun resultat obtenu de LinkedIn");
-    return [];
+    if (!result) {
+      console.log("[Agent] Aucun resultat obtenu de LinkedIn");
+      await playwrightClose(sessionName);
+      return [];
+    }
+
+    // 2. Extraire les offres structurees via Claude Sonnet (descriptions courtes)
+    console.log("[Agent] Extraction des offres via Claude Sonnet...");
+    const offers = await extractOffersFromSnapshot(
+      client,
+      result.snapshot,
+      result.links,
+      criteria
+    );
+
+    console.log(`[Agent] ${offers.length} offre(s) extraites de LinkedIn`);
+
+    if (offers.length === 0) {
+      await playwrightClose(sessionName);
+      return [];
+    }
+
+    // 3. Enrichir les descriptions en visitant les pages detail individuelles
+    // Le navigateur est encore ouvert et connecte a LinkedIn
+    // Claude Haiku est utilise pour nettoyer et formater chaque description
+    console.log("[Agent] Demarrage de l'enrichissement des descriptions...");
+    const detailDescriptions = await scrapeOfferDetails(offers, sessionName, client);
+
+    // 4. Fermer le navigateur apres le scraping des details
+    await playwrightClose(sessionName);
+
+    // 5. Remplacer les descriptions courtes par les descriptions completes
+    const enrichedOffers = offers.map((offer) => ({
+      ...offer,
+      description: detailDescriptions.get(offer.url) || offer.description,
+    }));
+
+    const enrichedCount = enrichedOffers.filter(
+      (o) => detailDescriptions.has(o.url)
+    ).length;
+
+    console.log(
+      `[Agent] ${enrichedCount}/${offers.length} offres enrichies avec description complete`
+    );
+
+    return enrichedOffers;
+  } catch (error) {
+    // Garantir la fermeture du navigateur en cas d'erreur non geree
+    try {
+      await playwrightClose(sessionName);
+    } catch { /* ignore */ }
+    throw error;
   }
-
-  // 2. Extraire les offres via Claude Sonnet
-  console.log("[Agent] Extraction des offres via Claude Sonnet...");
-  const offers = await extractOffersFromSnapshot(
-    client,
-    result.snapshot,
-    result.links,
-    criteria
-  );
-
-  console.log(`[Agent] ${offers.length} offre(s) extraites de LinkedIn`);
-  return offers;
 }
