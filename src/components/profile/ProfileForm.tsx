@@ -90,6 +90,7 @@ export function ProfileForm() {
   });
 
   // Remplir le formulaire avec les donnees existantes
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- setProfile synchrone necessaire pour hydrater le form depuis le cache
   useEffect(() => {
     if (existingProfile) {
       setProfile({

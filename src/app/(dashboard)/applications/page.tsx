@@ -10,7 +10,7 @@ export default function ApplicationsPage() {
       {/* En-tête de la page */}
       <div>
         <h1 className="text-2xl font-bold">Mes candidatures</h1>
-        <p className="text-muted-foreground">Suivez l'état de vos candidatures</p>
+        <p className="text-muted-foreground">Suivez l&apos;etat de vos candidatures</p>
       </div>
 
       {/* Carte placeholder */}
