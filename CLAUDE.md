@@ -39,6 +39,13 @@ SaaS de recherche d'emploi automatisee. Un agent IA scrape les offres, adapte CV
 - **Tanstack Query** : utiliser pour TOUT fetching de donnees serveur (queries, mutations, cache, invalidation)
 - **Tanstack Table** : utiliser pour TOUT affichage de donnees tabulaires (listes, tableaux, pagination, tri, filtres)
 
+### UI - États de chargement
+- **Toujours utiliser des skeletons** pour les états de chargement, jamais de spinner générique
+- Utiliser le composant `Skeleton` de shadcn/ui (`components/ui/skeleton`)
+- Le skeleton doit reproduire fidèlement la forme du contenu final (même dimensions, même layout)
+- Créer un composant `[NomComposant]Skeleton.tsx` dédié pour chaque bloc de contenu rechargeable
+- Coupler les skeletons avec Tanstack Query : afficher le skeleton quand `isLoading === true`
+
 ### API Routes
 - Valider les inputs avec Zod
 - Verifier l'authentification via Better Auth

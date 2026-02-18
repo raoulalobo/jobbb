@@ -1,43 +1,47 @@
-# Ajouter la pagination LinkedIn au scraping
+# CI/CD GitHub + Vercel pour JobAgent
 
 ## Contexte
 
-Actuellement, `scrapeSite()` ne scrape que la première page de résultats LinkedIn (~25 offres). LinkedIn pagine avec le paramètre `&start=25` (page 2), `&start=50` (page 3), etc. L'utilisateur veut scraper jusqu'à 3 pages max (~75 offres).
+Le projet n'a pas de CI/CD. Le repo GitHub existe (`raoulalobo/jobbb`) mais le remote n'est pas connecte au repo local. Les hooks ZenStack (`src/lib/hooks/`) sont dans `.gitignore`, donc il faut les regenerer en CI et sur Vercel avant le build.
 
-## Fichier à modifier : `src/lib/agent/orchestrator.ts`
+## Fichiers a creer (2)
 
-### Constantes à ajouter/modifier
-- `MAX_PAGES = 3` — nombre max de pages à scraper
-- `LINKEDIN_RESULTS_PER_PAGE = 25` — offres par page LinkedIn
-- `MAX_OFFERS_PER_SITE` : 15 → 75
+### 1. `.github/workflows/ci.yml`
 
-### Modifier `scrapeSite()` — boucle de pagination
+Workflow GitHub Actions declenche sur push et PR vers `main` :
 
-Après le login réussi, au lieu de naviguer une seule fois :
+- **Checkout** + **Setup Node 22** + **cache npm**
+- **Install** : `npm ci`
+- **ZenStack generate** : regenere Prisma client + hooks (variable `DATABASE_URL` factice car `prisma generate` n'a pas besoin de connexion reelle)
+- **Lint** : `npm run lint`
+- **Type-check** : `npx tsc --noEmit`
+- **Build** : `npm run build`
 
+### 2. `.env.example`
+
+Documente toutes les variables d'environnement requises (Supabase, Better Auth, Anthropic, Inngest, Resend) avec commentaires, sans valeurs sensibles.
+
+## Fichiers a modifier (1)
+
+### 3. `package.json`
+
+- Ajouter script `"postinstall": "npx zenstack generate"` pour que les hooks soient generes automatiquement apres `npm install` (fonctionne en CI et sur Vercel)
+
+## Actions manuelles (post-implementation)
+
+### 4. Connecter le remote GitHub + push initial
+
+```bash
+git remote add origin https://github.com/raoulalobo/jobbb.git
+git push -u origin main
 ```
-Pour page = 0, 1, 2 :
-  1. URL = buildSearchUrl(...) + "&start=" + (page * 25)
-  2. playwrightNavigate(sessionName, url)
-  3. Vérifier pas de blocage (captcha/checkpoint)
-  4. playwrightScroll(sessionName)
-  5. snapshot = playwrightSnapshot(sessionName)
-  6. links = playwrightExtractLinks(sessionName, jobLinkSelector)
-  7. Accumuler snapshots[] + allLinks[]
-  8. Si snapshot < 500 chars ou 0 nouveaux liens → break
-  9. Log: "[Agent] Page X/3 : Y liens extraits"
-Fermer navigateur une seule fois à la fin
-Retourner { snapshot: concaténé, links: tous }
-```
 
-### Modifier `extractOffersFromSnapshot()`
-- Troncature snapshot : 10000 → 30000 chars (3 pages)
-- `max_tokens` : 2048 → 4096
-- Le prompt reste identique
+### 5. Connecter Vercel
 
-## Vérification
+L'utilisateur importe le projet depuis le dashboard Vercel et configure les variables d'environnement de production.
 
-1. Lancer une recherche depuis `/searches`
-2. Logs serveur : `[Agent] Page 1/3`, `[Agent] Page 2/3`, etc.
-3. Plus d'offres retournées qu'avant (>25 si disponibles)
-4. Si <3 pages de résultats, la boucle s'arrête proprement
+## Verification
+
+1. Le workflow CI passe au vert sur GitHub apres push
+2. Vercel deploie automatiquement a chaque push sur `main`
+3. Les PR affichent un preview deploy Vercel + status CI
