@@ -10,6 +10,8 @@ import { createAuthClient } from "better-auth/react";
  *   await authClient.signIn.email({ email, password })
  */
 export const authClient = createAuthClient({
-  // Pas de baseURL explicite : les requetes sont envoyees sur le meme origin
-  // Cela evite les problemes CORS quand le port change (3000 -> 3001, etc.)
+  // baseURL pointe vers NEXT_PUBLIC_BETTER_AUTH_URL si defini (production Vercel)
+  // En dev : undefined = meme origin (localhost:3000)
+  // Sur Vercel : definir NEXT_PUBLIC_BETTER_AUTH_URL=https://jobbb-brown.vercel.app
+  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
 });

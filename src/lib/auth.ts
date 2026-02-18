@@ -18,6 +18,13 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
 
+  // Origins autorisees pour CORS
+  // BETTER_AUTH_URL doit etre defini en variable d'env sur Vercel :
+  //   BETTER_AUTH_URL=https://jobbb-brown.vercel.app
+  trustedOrigins: [
+    process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  ],
+
   // Configuration email + password
   emailAndPassword: {
     enabled: true,
