@@ -19,10 +19,16 @@ export const auth = betterAuth({
   }),
 
   // Origins autorisees pour CORS
-  // BETTER_AUTH_URL doit etre defini en variable d'env sur Vercel :
-  //   BETTER_AUTH_URL=https://jobbb-brown.vercel.app
+  // Inclut toutes les URLs Vercel possibles pour eviter les erreurs cross-origin
+  // Variables d'env a definir sur Vercel :
+  //   BETTER_AUTH_URL=https://jobbb-brown.vercel.app (URL principale)
+  //   BETTER_AUTH_TRUSTED_ORIGINS=https://jobbb.vercel.app,https://jobbb-brown.vercel.app (optionnel, URLs supplementaires)
   trustedOrigins: [
     process.env.BETTER_AUTH_URL || "http://localhost:3000",
+    // Origins supplementaires separees par des virgules (ex: plusieurs domaines Vercel)
+    ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS
+      ? process.env.BETTER_AUTH_TRUSTED_ORIGINS.split(",").map((o) => o.trim())
+      : []),
   ],
 
   // Configuration email + password
