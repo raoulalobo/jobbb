@@ -1,16 +1,17 @@
 /**
  * Role : Fonction Inngest declenchee par l'evenement "search/user.trigger"
- * Execute toutes les recherches actives d'un utilisateur et stocke les offres en BDD.
+ * Execute la recherche programmee d'un utilisateur et stocke les offres en BDD.
  *
  * Flux :
- *   1. Charge le profil de l'utilisateur (identifiants LinkedIn)
- *   2. Charge toutes ses SearchConfig actives
- *   3. Pour chaque SearchConfig : lance runSearchAgent + upsert des offres en BDD
- *   4. Retourne le nombre total d'offres nouvelles et mises a jour
+ *   1. Charge la ScheduleConfig pour lire le searchConfigId programme
+ *   2. Abandonne si aucune SearchConfig n'est selectionnee (searchConfigId = null)
+ *   3. Charge le profil de l'utilisateur (identifiants LinkedIn)
+ *   4. Charge la SearchConfig ciblee (avec verification ownership)
+ *   5. Lance runSearchAgent + upsert des offres en BDD
+ *   6. Retourne le nombre d'offres nouvelles et mises a jour
  *
  * Etapes Inngest (step.run) :
  *   - Chaque etape est rejouable en cas d'echec partiel (propriete Inngest)
- *   - Une SearchConfig en erreur n'interrompt pas les autres
  *
  * Limites connues :
  *   - runSearchAgent utilise Playwright (navigateur headless)
@@ -41,7 +42,21 @@ export const runUserSearch = inngest.createFunction(
   async ({ event, step }) => {
     const { userId } = event.data;
 
-    // Etape 1 : charger le profil (identifiants LinkedIn)
+    // Etape 1 : charger la ScheduleConfig pour lire le searchConfigId programme
+    const scheduleConfig = await step.run("load-schedule-config", async () => {
+      return prisma.scheduleConfig.findUnique({ where: { userId } });
+    });
+
+    // Abandonner si l'utilisateur n'a pas selectionne de SearchConfig dans /settings
+    if (!scheduleConfig?.searchConfigId) {
+      return {
+        userId,
+        skipped: true,
+        reason: "Aucune recherche programmee dans les parametres",
+      };
+    }
+
+    // Etape 2 : charger le profil (identifiants LinkedIn)
     const profile = await step.run("load-profile", async () => {
       return prisma.profile.findUnique({ where: { userId } });
     });
@@ -55,18 +70,21 @@ export const runUserSearch = inngest.createFunction(
       };
     }
 
-    // Etape 2 : charger les SearchConfigs actives de l'utilisateur
+    // Etape 3 : charger uniquement la SearchConfig choisie (avec verification ownership)
+    // Si la SearchConfig a ete supprimee depuis la planification, le tableau sera vide
     const searchConfigs = await step.run("load-search-configs", async () => {
-      return prisma.searchConfig.findMany({
-        where: { userId, isActive: true },
+      const targeted = await prisma.searchConfig.findFirst({
+        where: { id: scheduleConfig.searchConfigId!, userId },
       });
+      return targeted ? [targeted] : [];
     });
 
+    // Abandonner si la config n'existe plus (ex: supprimee apres planification)
     if (searchConfigs.length === 0) {
       return {
         userId,
         skipped: true,
-        reason: "Aucune configuration de recherche active",
+        reason: "La recherche programmee n'existe plus",
       };
     }
 
@@ -116,6 +134,9 @@ export const runUserSearch = inngest.createFunction(
                 salary: offer.salary,
                 contractType: offer.contractType,
                 source: offer.source,
+                // Marquage "scheduled" : offre creee par le planificateur Inngest automatique
+                // N'est defini QUE dans create → l'origine initiale est preservee si l'offre existait deja
+                origin: "scheduled",
                 isNew: true,
                 isBookmarked: false,
               },
@@ -126,6 +147,7 @@ export const runUserSearch = inngest.createFunction(
                 description: offer.description,
                 salary: offer.salary,
                 contractType: offer.contractType,
+                // origin intentionnellement absent → preserve l'origine de la premiere decouverte
               },
             });
 

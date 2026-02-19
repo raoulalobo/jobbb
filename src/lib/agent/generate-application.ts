@@ -22,7 +22,10 @@ const GENERATION_MODEL = "claude-sonnet-4-6";
 export interface ApplicationProfile {
   title: string;
   summary?: string | null;
+  location?: string | null;
   skills: string[];
+  /** Compétences comportementales : leadership, travail d'équipe, etc. */
+  softSkills: string[];
   experiences: Array<{
     company: string;
     title: string;
@@ -34,7 +37,12 @@ export interface ApplicationProfile {
     degree: string;
     dates: string;
   }>;
-  location?: string | null;
+  /** Certifications professionnelles : AWS, PMP, etc. */
+  certifications: Array<{
+    name: string;
+    issuer?: string;
+    date?: string;
+  }>;
 }
 
 /**
@@ -112,11 +120,28 @@ export async function generateApplication(
           .join("\n")
       : "  Aucune formation renseignee";
 
+  // Formatage des certifications pour le prompt
+  const certificationsText =
+    profile.certifications.length > 0
+      ? profile.certifications
+          .map((c) => {
+            let line = `  - ${c.name}`;
+            if (c.issuer) line += ` (${c.issuer}`;
+            if (c.date) line += c.issuer ? `, ${c.date})` : ` (${c.date})`;
+            else if (c.issuer) line += ")";
+            return line;
+          })
+          .join("\n")
+      : "  Aucune certification renseignee";
+
   const profileContext = `
 Titre professionnel : ${profile.title}
 Localisation : ${profile.location ?? "Non renseignee"}
 Resume : ${profile.summary ?? "Non renseigne"}
-Competences : ${profile.skills.length > 0 ? profile.skills.join(", ") : "Non renseignees"}
+Competences techniques : ${profile.skills.length > 0 ? profile.skills.join(", ") : "Non renseignees"}
+Competences comportementales : ${profile.softSkills.length > 0 ? profile.softSkills.join(", ") : "Non renseignees"}
+Certifications :
+${certificationsText}
 Experiences professionnelles :
 ${experiencesText}
 Formation :
@@ -160,8 +185,9 @@ Reponds UNIQUEMENT en JSON avec exactement ce format (pas de texte avant ni apre
 
 Regles pour le CV :
 - Met en avant les competences et experiences les plus pertinentes pour CE poste
-- Structure : Informations, Resume, Competences cles, Experiences, Formation
+- Structure : Informations, Resume, Competences cles, Experiences, Formation, Certifications (si presentes)
 - Adapte le resume professionnel pour correspondre au poste vise
+- Inclus les certifications si elles sont pertinentes pour le poste
 - Format markdown propre avec titres et listes
 
 Regles pour la lettre de motivation :
@@ -169,6 +195,7 @@ Regles pour la lettre de motivation :
 - Ton professionnel et enthousiaste
 - 3 a 4 paragraphes : accroche, valeur apportee, motivation specifique, conclusion
 - Met en avant 2-3 competences/experiences directement liees a l'offre
+- Integre naturellement 1-2 competences comportementales (soft skills) si pertinentes
 - Format markdown, longueur ideale : 250-350 mots
 
 Les deux documents doivent etre en francais.`,

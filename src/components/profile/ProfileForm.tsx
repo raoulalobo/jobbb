@@ -21,13 +21,14 @@ import {
   type ExperienceItem,
   type EducationItem,
 } from "./ExperienceList";
+import { CertificationList, type CertificationItem } from "./CertificationList";
 
 /**
  * Role : Formulaire complet du profil candidat
  * Gere la saisie et la sauvegarde de toutes les informations du profil :
- * titre, telephone, localisation, resume, competences, experiences, formations, CV
+ * titre, telephone, localisation, resume, competences, experiences, formations
  * Utilise par : page /profile
- * Interactions : API ZenStack (GET/PUT /api/model/profile), Supabase Storage (upload CV)
+ * Interactions : API ZenStack (GET/PUT /api/model/profile), Supabase Storage (upload avatar)
  */
 
 // Type du profil tel que retourne par l'API
@@ -38,9 +39,10 @@ interface ProfileData {
   location: string;
   summary: string;
   skills: string[];
+  softSkills: string[];
   experiences: ExperienceItem[];
   education: EducationItem[];
-  cvUrl: string | null;
+  certifications: CertificationItem[];
   linkedinEmail: string;
   linkedinPassword: string;
 }
@@ -52,9 +54,10 @@ const DEFAULT_PROFILE: ProfileData = {
   location: "",
   summary: "",
   skills: [],
+  softSkills: [],
   experiences: [],
   education: [],
-  cvUrl: null,
+  certifications: [],
   linkedinEmail: "",
   linkedinPassword: "",
 };
@@ -65,7 +68,6 @@ export function ProfileForm() {
 
   // Etat local du formulaire (isole a ce composant, useState acceptable)
   const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
-  const [cvFile, setCvFile] = useState<File | null>(null);
 
   // Etat partage via Zustand : avatar preview et loading (utilise aussi par Header)
   const avatarPreview = useUiStore((s) => s.avatarPreview);
@@ -101,13 +103,16 @@ export function ProfileForm() {
         location: existingProfile.location || "",
         summary: existingProfile.summary || "",
         skills: Array.isArray(existingProfile.skills) ? existingProfile.skills : [],
+        softSkills: Array.isArray(existingProfile.softSkills) ? existingProfile.softSkills : [],
         experiences: Array.isArray(existingProfile.experiences)
           ? existingProfile.experiences
           : [],
         education: Array.isArray(existingProfile.education)
           ? existingProfile.education
           : [],
-        cvUrl: existingProfile.cvUrl || null,
+        certifications: Array.isArray(existingProfile.certifications)
+          ? existingProfile.certifications
+          : [],
         linkedinEmail: existingProfile.linkedinEmail || "",
         linkedinPassword: existingProfile.linkedinPassword || "",
       });
@@ -117,12 +122,6 @@ export function ProfileForm() {
   // Mutation pour sauvegarder le profil (creation ou mise a jour)
   const saveMutation = useMutation({
     mutationFn: async (data: ProfileData) => {
-      // Upload du CV si un fichier est selectionne (via cvMutation)
-      let cvUrl = data.cvUrl;
-      if (cvFile) {
-        cvUrl = await cvMutation.mutateAsync(cvFile);
-      }
-
       // Champs communs du profil
       const profileFields = {
         title: data.title,
@@ -130,9 +129,10 @@ export function ProfileForm() {
         location: data.location || null,
         summary: data.summary || null,
         skills: data.skills,
+        softSkills: data.softSkills,
         experiences: data.experiences,
         education: data.education,
-        cvUrl,
+        certifications: data.certifications,
         linkedinEmail: data.linkedinEmail || null,
         linkedinPassword: data.linkedinPassword || null,
       };
@@ -169,7 +169,6 @@ export function ProfileForm() {
     onSuccess: () => {
       toast.success("Profil sauvegarde avec succes");
       queryClient.invalidateQueries({ queryKey: ["profile"] });
-      setCvFile(null);
       router.refresh();
     },
     onError: (error: Error) => {
@@ -237,24 +236,6 @@ export function ProfileForm() {
     // Reset l'input file pour permettre de re-selectionner le meme fichier
     e.target.value = "";
   }
-
-  // Mutation : upload du fichier CV vers Supabase Storage
-  // Retourne l'URL du CV uploade, utilisee par saveMutation
-  const cvMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/upload/cv", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error("Erreur lors de l'upload du CV");
-      const json = await res.json();
-      return json.data.url as string;
-    },
-  });
 
   // Gestion de la soumission du formulaire
   function handleSubmit(e: React.FormEvent) {
@@ -434,17 +415,34 @@ export function ProfileForm() {
         </CardContent>
       </Card>
 
-      {/* Section : Competences */}
+      {/* Section : Compétences techniques */}
       <Card>
         <CardHeader>
-          <CardTitle>Competences</CardTitle>
+          <CardTitle>Compétences techniques</CardTitle>
         </CardHeader>
         <CardContent>
           <SkillsInput
             skills={profile.skills}
-            onChange={(skills) =>
-              setProfile((prev) => ({ ...prev, skills }))
-            }
+            onChange={(skills) => setProfile((prev) => ({ ...prev, skills }))}
+            placeholder="Ex: React, Node.js, TypeScript..."
+          />
+        </CardContent>
+      </Card>
+
+      {/* Section : Compétences comportementales (soft skills) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Compétences comportementales</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Ces qualités humaines seront mises en avant par l&apos;IA dans votre lettre de motivation.
+          </p>
+          <SkillsInput
+            skills={profile.softSkills}
+            onChange={(softSkills) => setProfile((prev) => ({ ...prev, softSkills }))}
+            label="Soft skills"
+            placeholder="Ex: Leadership, Travail d'équipe, Adaptabilité..."
           />
         </CardContent>
       </Card>
@@ -487,50 +485,21 @@ export function ProfileForm() {
         </CardContent>
       </Card>
 
-      {/* Section : CV */}
+      {/* Section : Certifications professionnelles */}
       <Card>
         <CardHeader>
-          <CardTitle>Curriculum Vitae</CardTitle>
+          <CardTitle>Certifications</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Affichage du CV actuel */}
-          {profile.cvUrl && !cvFile && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">CV actuel :</span>
-              <a
-                href={profile.cvUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-primary hover:underline"
-              >
-                Voir le CV
-              </a>
-            </div>
-          )}
-
-          {/* Input pour uploader un nouveau CV */}
-          <div className="space-y-2">
-            <Label htmlFor="cv">
-              {profile.cvUrl ? "Remplacer le CV" : "Uploader votre CV"} (PDF)
-            </Label>
-            <div className="flex items-center gap-3">
-              <Input
-                id="cv"
-                type="file"
-                accept=".pdf"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] ?? null;
-                  setCvFile(file);
-                }}
-                className="max-w-sm"
-              />
-              {cvFile && (
-                <span className="text-sm text-muted-foreground">
-                  {cvFile.name} ({(cvFile.size / 1024).toFixed(0)} Ko)
-                </span>
-              )}
-            </div>
-          </div>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Certifications, diplômes professionnels ou badges reconnus dans votre secteur.
+          </p>
+          <CertificationList
+            items={profile.certifications}
+            onChange={(certifications) =>
+              setProfile((prev) => ({ ...prev, certifications }))
+            }
+          />
         </CardContent>
       </Card>
 

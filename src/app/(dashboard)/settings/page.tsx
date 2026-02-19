@@ -20,10 +20,10 @@
  */
 
 import { authClient } from "@/lib/auth-client";
-import { useFindFirstScheduleConfig } from "@/lib/hooks";
+import { useFindFirstScheduleConfig, useFindManySearchConfig } from "@/lib/hooks";
 import { ScheduleConfigForm } from "@/components/settings/ScheduleConfigForm";
 import { ScheduleConfigSkeleton } from "@/components/settings/ScheduleConfigSkeleton";
-import type { ScheduleConfig } from "@prisma/client";
+import type { ScheduleConfig, SearchConfig } from "@prisma/client";
 
 export default function SettingsPage() {
   // Recuperer la session pour obtenir l'userId
@@ -35,8 +35,13 @@ export default function SettingsPage() {
   const { data: scheduleConfigs, isLoading: isLoadingConfig } =
     useFindFirstScheduleConfig();
 
-  // Skeleton si la session ou la config n'est pas encore chargee
-  const isLoading = !userId || isLoadingConfig;
+  // Query : toutes les SearchConfigs de l'utilisateur (pour le selecteur dans le formulaire)
+  // Triees par date de creation decroissante pour afficher les plus recentes en premier
+  const { data: searchConfigs, isLoading: isLoadingSearches } =
+    useFindManySearchConfig({ orderBy: { createdAt: "desc" } });
+
+  // Skeleton si la session, la config ou les recherches ne sont pas encore chargees
+  const isLoading = !userId || isLoadingConfig || isLoadingSearches;
 
   return (
     <div className="space-y-6">
@@ -60,6 +65,7 @@ export default function SettingsPage() {
         <ScheduleConfigForm
           userId={userId}
           existingConfig={(scheduleConfigs as ScheduleConfig) ?? null}
+          searchConfigs={(searchConfigs as SearchConfig[]) ?? []}
         />
       )}
     </div>

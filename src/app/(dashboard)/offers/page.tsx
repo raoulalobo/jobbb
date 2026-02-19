@@ -34,6 +34,8 @@ export default function OffersPage() {
   const contractType = useSearchStore((s) => s.filters.contractType);
   const onlyNew = useSearchStore((s) => s.filters.onlyNew);
   const onlyBookmarked = useSearchStore((s) => s.filters.onlyBookmarked);
+  // Filtre par origine de l'offre (Inngest planifie vs declenchement manuel sandbox)
+  const origin = useSearchStore((s) => s.filters.origin);
   const currentPage = useSearchStore((s) => s.currentPage);
   const pageSize = useSearchStore((s) => s.pageSize);
   const setPage = useSearchStore((s) => s.actions.setPage);
@@ -71,8 +73,13 @@ export default function OffersPage() {
       ];
     }
 
+    // Filtre par origine : "scheduled" (Inngest auto) ou "sandbox" (manuel)
+    if (origin) {
+      conditions.origin = origin;
+    }
+
     return conditions;
-  }, [source, contractType, onlyNew, onlyBookmarked, searchQuery]);
+  }, [source, contractType, onlyNew, onlyBookmarked, searchQuery, origin]);
 
   // Query : liste des offres paginee avec filtres
   const { data: offers, isLoading } = useFindManyOffer({

@@ -14,7 +14,6 @@ import { Separator } from "@/components/ui/separator";
  *   Card Compétences : zone de tags
  *   Card Expériences : 1 ligne + bouton ajouter
  *   Card Formations : 1 ligne + bouton ajouter
- *   Card CV : input file
  *   Separator + bouton sauvegarder
  */
 export function ProfileFormSkeleton() {
@@ -118,19 +117,6 @@ export function ProfileFormSkeleton() {
         </CardHeader>
         <CardContent>
           <Skeleton className="h-8 w-36 rounded-md" />
-        </CardContent>
-      </Card>
-
-      {/* Card CV */}
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-5 w-36" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Skeleton className="h-3.5 w-48" />
-            <Skeleton className="h-9 w-64 rounded-md" />
-          </div>
         </CardContent>
       </Card>
 

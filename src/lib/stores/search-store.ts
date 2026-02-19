@@ -22,6 +22,8 @@ interface SearchFilters {
   onlyBookmarked: boolean;
   // Recherche textuelle
   searchQuery: string;
+  // Filtre par origine : "scheduled" = Inngest auto | "sandbox" = manuel | null = toutes
+  origin: string | null;
 }
 
 interface SearchState {
@@ -51,6 +53,8 @@ const DEFAULT_FILTERS: SearchFilters = {
   onlyNew: false,
   onlyBookmarked: false,
   searchQuery: "",
+  // null = afficher toutes les origines (pas de filtre actif)
+  origin: null,
 };
 
 export const useSearchStore = create<SearchState>()(

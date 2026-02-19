@@ -4,6 +4,7 @@
  * Role : Formulaire de configuration du scheduler de recherche automatique
  * Permet a l'utilisateur de :
  *   - Activer/desactiver la recherche automatique (Switch isActive)
+ *   - Choisir quelle SearchConfig lancer automatiquement (Select searchConfig)
  *   - Configurer l'heure de declenchement (Select heure + minute)
  *   - Choisir sa timezone (Select parmi les zones courantes)
  *
@@ -12,6 +13,8 @@
  *   - Upsert (create ou update) via useUpsertScheduleConfig au clic "Enregistrer"
  *   - Le composant est monte uniquement une fois que session.user.id est disponible
  *     (ce qui permet d'initialiser l'etat depuis les props sans useEffect)
+ *   - Si searchConfigId = null, Inngest ne lancera rien (avertissement affiché)
+ *   - Si aucune SearchConfig n'existe, affiche un Alert avec CTA vers /searches
  *
  * Interactions :
  *   - useFindFirstScheduleConfig : lit la config existante de l'utilisateur
@@ -22,8 +25,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Clock, Save } from "lucide-react";
-import type { ScheduleConfig } from "@prisma/client";
+import { AlertTriangle, Clock, Save, Search } from "lucide-react";
+import type { ScheduleConfig, SearchConfig } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -41,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useUpsertScheduleConfig } from "@/lib/hooks";
 
 /**
@@ -84,6 +88,8 @@ interface ScheduleConfigFormProps {
   userId: string;
   /** Config existante depuis la BDD, ou null si premiere configuration */
   existingConfig: ScheduleConfig | null;
+  /** Liste des SearchConfigs de l'utilisateur pour le selecteur de recherche */
+  searchConfigs: SearchConfig[];
 }
 
 /**
@@ -94,6 +100,7 @@ interface ScheduleConfigFormProps {
 export function ScheduleConfigForm({
   userId,
   existingConfig,
+  searchConfigs,
 }: ScheduleConfigFormProps) {
   const queryClient = useQueryClient();
 
@@ -103,6 +110,12 @@ export function ScheduleConfigForm({
   const [minute, setMinute] = useState(existingConfig?.minute ?? 0);
   const [timezone, setTimezone] = useState(
     existingConfig?.timezone ?? "Europe/Paris"
+  );
+
+  // "" = aucune selection (searchConfigId null en BDD)
+  // Le Select shadcn affiche le placeholder quand value === ""
+  const [selectedSearchConfigId, setSelectedSearchConfigId] = useState<string>(
+    existingConfig?.searchConfigId ?? ""
   );
 
   // Mutation : upsert de la ScheduleConfig (create si inexistante, update sinon)
@@ -117,14 +130,38 @@ export function ScheduleConfigForm({
   });
 
   /**
-   * Sauvegarde la configuration du scheduler via upsert
-   * Create si aucune config existante, update sinon
+   * Sauvegarde la configuration du scheduler via upsert.
+   * - Si selectedSearchConfigId === "" → searchConfigId null (disconnect)
+   * - Sinon → connect vers la SearchConfig selectionnee
    */
   const handleSave = () => {
+    // Convertir la chaine vide en null pour la BDD
+    const resolvedId =
+      selectedSearchConfigId === "" ? null : selectedSearchConfigId;
+
     upsertMutation.mutate({
       where: { userId },
-      create: { userId, isActive, hour, minute, timezone },
-      update: { isActive, hour, minute, timezone },
+      create: {
+        userId,
+        isActive,
+        hour,
+        minute,
+        timezone,
+        // Connecter ou laisser null selon la selection
+        ...(resolvedId
+          ? { searchConfig: { connect: { id: resolvedId } } }
+          : { searchConfigId: null }),
+      },
+      update: {
+        isActive,
+        hour,
+        minute,
+        timezone,
+        // Connecter ou deconnecter selon la selection
+        ...(resolvedId
+          ? { searchConfig: { connect: { id: resolvedId } } }
+          : { searchConfig: { disconnect: true } }),
+      },
     });
   };
 
@@ -133,7 +170,8 @@ export function ScheduleConfigForm({
     isActive !== (existingConfig?.isActive ?? false) ||
     hour !== (existingConfig?.hour ?? 8) ||
     minute !== (existingConfig?.minute ?? 0) ||
-    timezone !== (existingConfig?.timezone ?? "Europe/Paris");
+    timezone !== (existingConfig?.timezone ?? "Europe/Paris") ||
+    selectedSearchConfigId !== (existingConfig?.searchConfigId ?? "");
 
   return (
     <Card>
@@ -164,6 +202,63 @@ export function ScheduleConfigForm({
             checked={isActive}
             onCheckedChange={setIsActive}
           />
+        </div>
+
+        {/* Selecteur de SearchConfig a programmer */}
+        <div className="space-y-1.5">
+          <Label htmlFor="search-config-select">Recherche a planifier</Label>
+          <p className="text-sm text-muted-foreground">
+            Choisissez quelle recherche l&apos;agent doit executer automatiquement chaque jour.
+          </p>
+
+          {searchConfigs.length === 0 ? (
+            // Etat vide : aucune SearchConfig creee → message clair avec CTA vers /searches
+            <Alert>
+              <Search className="h-4 w-4" />
+              <AlertTitle>Aucune recherche creee</AlertTitle>
+              <AlertDescription>
+                Pour programmer une recherche automatique, vous devez d&apos;abord creer au
+                moins une configuration de recherche.{" "}
+                <a
+                  href="/searches"
+                  className="font-medium underline underline-offset-2 hover:text-foreground"
+                >
+                  Creer une recherche →
+                </a>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <Select
+                value={selectedSearchConfigId}
+                onValueChange={setSelectedSearchConfigId}
+              >
+                <SelectTrigger id="search-config-select">
+                  <SelectValue placeholder="Selectionner une recherche..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {searchConfigs.map((sc) => (
+                    <SelectItem key={sc.id} value={sc.id}>
+                      {sc.name}
+                      {!sc.isActive && (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          (desactivee)
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Avertissement si le scheduler est actif mais aucune recherche choisie */}
+              {isActive && selectedSearchConfigId === "" && (
+                <p className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-500">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Aucune recherche selectionnee — le scheduler ne lancera rien.
+                </p>
+              )}
+            </>
+          )}
         </div>
 
         {/* Configuration heure + timezone (visible meme si inactif pour faciliter la configuration) */}
@@ -226,14 +321,16 @@ export function ScheduleConfigForm({
           </div>
         </div>
 
-        {/* Resume de la planification */}
-        {isActive && (
+        {/* Resume de la planification enrichi avec le nom de la recherche */}
+        {isActive && selectedSearchConfigId !== "" && (
           <p className="rounded-md bg-muted px-4 py-2 text-sm text-muted-foreground">
             L&apos;agent se declenchera chaque jour a{" "}
-            <strong className="text-foreground">
-              {formatHour(hour, minute)}
-            </strong>{" "}
+            <strong className="text-foreground">{formatHour(hour, minute)}</strong>{" "}
             ({TIMEZONES.find((tz) => tz.value === timezone)?.label ?? timezone})
+            {" "}— recherche{" "}
+            <strong className="text-foreground">
+              &quot;{searchConfigs.find((s) => s.id === selectedSearchConfigId)?.name}&quot;
+            </strong>
           </p>
         )}
 

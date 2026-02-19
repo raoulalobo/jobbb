@@ -38,30 +38,32 @@ model Profile {
   phone            String?
   location         String?
   skills           Json     @default("[]")
+  softSkills       Json     @default("[]")
   experiences      Json     @default("[]")
   education        Json     @default("[]")
+  certifications   Json     @default("[]")
   summary          String?
-  cvUrl            String?
   linkedinEmail    String?
   linkedinPassword String?
   updatedAt        DateTime @updatedAt()
 }
 
 model SearchConfig {
-  id              String   @id() @default(cuid())
+  id              String           @id() @default(cuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
   query           String
   location        String
-  sites           Json     @default("[\"linkedin\"]")
-  remote          Boolean  @default(false)
+  sites           Json             @default("[\"linkedin\"]")
+  remote          Boolean          @default(false)
   salaryMin       Int?
-  contractTypes   Json     @default("[\"CDI\"]")
+  contractTypes   Json             @default("[\"CDI\"]")
   excludeKeywords Json?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt()
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt()
+  scheduledBy     ScheduleConfig[]
 }
 
 model Offer {
@@ -78,6 +80,7 @@ model Offer {
   source       String
   isNew        Boolean       @default(true)
   isBookmarked Boolean       @default(false)
+  origin       String        @default("sandbox")
   createdAt    DateTime      @default(now())
   applications Application[]
 
@@ -103,12 +106,14 @@ model Application {
 }
 
 model ScheduleConfig {
-  id       String  @id() @default(cuid())
-  userId   String  @unique()
-  hour     Int     @default(8)
-  minute   Int     @default(0)
-  timezone String  @default("Europe/Paris")
-  isActive Boolean @default(false)
+  id             String        @id() @default(cuid())
+  userId         String        @unique()
+  hour           Int           @default(8)
+  minute         Int           @default(0)
+  timezone       String        @default("Europe/Paris")
+  isActive       Boolean       @default(false)
+  searchConfigId String?
+  searchConfig   SearchConfig? @relation(fields: [searchConfigId], references: [id], onDelete: SetNull)
 }
 
 model Session {

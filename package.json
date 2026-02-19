@@ -17,6 +17,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.75.0",
     "@prisma/client": "^6.19.2",
+    "@react-pdf/renderer": "^4.3.2",
     "@supabase/supabase-js": "^2.96.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",

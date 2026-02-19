@@ -99,11 +99,15 @@ export async function POST(request: NextRequest) {
       summary: profile.summary,
       location: profile.location,
       skills: Array.isArray(profile.skills) ? (profile.skills as string[]) : [],
+      softSkills: Array.isArray(profile.softSkills) ? (profile.softSkills as string[]) : [],
       experiences: Array.isArray(profile.experiences)
         ? (profile.experiences as ApplicationProfile["experiences"])
         : [],
       education: Array.isArray(profile.education)
         ? (profile.education as ApplicationProfile["education"])
+        : [],
+      certifications: Array.isArray(profile.certifications)
+        ? (profile.certifications as ApplicationProfile["certifications"])
         : [],
     };
 

@@ -18,9 +18,13 @@ import { Label } from "@/components/ui/label";
 interface SkillsInputProps {
   skills: string[];
   onChange: (skills: string[]) => void;
+  /** Label affiché au-dessus du champ. Par défaut : "Compétences" */
+  label?: string;
+  /** Placeholder affiché quand la liste est vide */
+  placeholder?: string;
 }
 
-export function SkillsInput({ skills, onChange }: SkillsInputProps) {
+export function SkillsInput({ skills, onChange, label = "Compétences", placeholder }: SkillsInputProps) {
   const [inputValue, setInputValue] = useState("");
 
   // Ajouter une competence a la liste (si elle n'existe pas deja)
@@ -69,7 +73,7 @@ export function SkillsInput({ skills, onChange }: SkillsInputProps) {
 
   return (
     <div className="space-y-2">
-      <Label>Competences</Label>
+      <Label>{label}</Label>
 
       {/* Zone d'affichage des tags + input */}
       <div className="flex min-h-10 flex-wrap gap-2 rounded-md border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
@@ -102,7 +106,7 @@ export function SkillsInput({ skills, onChange }: SkillsInputProps) {
             // Ajouter le texte en cours si on quitte le champ
             if (inputValue.trim()) addSkill(inputValue);
           }}
-          placeholder={skills.length === 0 ? "Ex: React, Node.js, TypeScript..." : "Ajouter..."}
+          placeholder={skills.length === 0 ? (placeholder ?? "Ex: React, Node.js, TypeScript...") : "Ajouter..."}
           className="h-7 min-w-[120px] flex-1 border-0 p-0 shadow-none focus-visible:ring-0"
         />
       </div>

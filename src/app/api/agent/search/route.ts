@@ -147,6 +147,9 @@ export async function POST(request: NextRequest) {
             salary: offer.salary,
             contractType: offer.contractType,
             source: offer.source,
+            // Marquage "sandbox" : offre creee par un declenchement manuel via /searches
+            // N'est defini QUE dans create → l'origine initiale est preservee si l'offre existait deja
+            origin: "sandbox",
             isNew: true,
             isBookmarked: false,
           },
@@ -158,6 +161,7 @@ export async function POST(request: NextRequest) {
             description: offer.description,
             salary: offer.salary,
             contractType: offer.contractType,
+            // origin intentionnellement absent → preserve l'origine de la premiere decouverte
           },
         });
 

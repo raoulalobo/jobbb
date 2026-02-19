@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bookmark, MapPin, Building2 } from "lucide-react";
+import { Bookmark, CalendarClock, MapPin, MousePointerClick, Building2 } from "lucide-react";
 
 /**
  * Role : Carte d'offre d'emploi affichee dans la grille de la page /offers
@@ -92,13 +92,33 @@ export function OfferCard({
           </span>
         </div>
 
-        {/* Badges : nouveau, source, type de contrat */}
+        {/* Badges : nouveau, origine, source, type de contrat */}
         <div className="flex flex-wrap gap-1.5 pt-1">
           {offer.isNew && (
             <Badge variant="default" className="text-xs">
               Nouveau
             </Badge>
           )}
+
+          {/* Badge origine : bleu pour planifiee (Inngest), violet pour sandbox (manuel) */}
+          {offer.origin === "scheduled" ? (
+            <Badge
+              variant="outline"
+              className="gap-1 text-xs text-blue-600 border-blue-200 bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:bg-blue-950"
+            >
+              <CalendarClock className="h-3 w-3" />
+              Planifiée
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="gap-1 text-xs text-violet-600 border-violet-200 bg-violet-50 dark:text-violet-400 dark:border-violet-800 dark:bg-violet-950"
+            >
+              <MousePointerClick className="h-3 w-3" />
+              Sandbox
+            </Badge>
+          )}
+
           <Badge variant="secondary" className="text-xs">
             {formatSource(offer.source)}
           </Badge>

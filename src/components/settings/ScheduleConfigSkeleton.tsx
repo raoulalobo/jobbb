@@ -3,10 +3,11 @@
  * Reproduit la structure de ScheduleConfigForm :
  *   - Card avec titre + description
  *   - Toggle isActive
+ *   - Selecteur de SearchConfig (label + description + select)
  *   - 3 selects (heure, minute, timezone)
  *   - Bouton enregistrer
  *
- * Affiche pendant que la session ou la ScheduleConfig se charge
+ * Affiche pendant que la session, la ScheduleConfig ou les SearchConfigs se chargent
  */
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,6 +34,13 @@ export function ScheduleConfigSkeleton() {
             <Skeleton className="h-3 w-64" />
           </div>
           <Skeleton className="h-6 w-11 rounded-full" />
+        </div>
+
+        {/* Skeleton selecteur SearchConfig */}
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="h-3 w-80" />
+          <Skeleton className="h-9 w-full rounded-md" />
         </div>
 
         {/* 3 selects */}

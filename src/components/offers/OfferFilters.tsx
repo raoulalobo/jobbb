@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Bookmark, X } from "lucide-react";
+import { Bookmark, CalendarClock, MousePointerClick, X } from "lucide-react";
 import { useSearchStore } from "@/lib/stores/search-store";
 
 /**
@@ -35,6 +35,8 @@ export function OfferFilters() {
   const contractType = useSearchStore((s) => s.filters.contractType);
   const onlyNew = useSearchStore((s) => s.filters.onlyNew);
   const onlyBookmarked = useSearchStore((s) => s.filters.onlyBookmarked);
+  // Filtre par origine : "scheduled" (Inngest auto) | "sandbox" (manuel) | null (toutes)
+  const origin = useSearchStore((s) => s.filters.origin);
   const setFilter = useSearchStore((s) => s.actions.setFilter);
   const resetFilters = useSearchStore((s) => s.actions.resetFilters);
 
@@ -44,7 +46,8 @@ export function OfferFilters() {
     source !== null ||
     contractType !== null ||
     onlyNew ||
-    onlyBookmarked;
+    onlyBookmarked ||
+    origin !== null;
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -71,6 +74,31 @@ export function OfferFilters() {
           <SelectItem value="linkedin">LinkedIn</SelectItem>
           <SelectItem value="indeed">Indeed</SelectItem>
           <SelectItem value="wttj">WTTJ</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {/* Filtre par origine : planifiée (Inngest) ou sandbox (manuel) */}
+      <Select
+        value={origin ?? "all"}
+        onValueChange={(v) => setFilter("origin", v === "all" ? null : v)}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue placeholder="Origine" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Toutes origines</SelectItem>
+          <SelectItem value="scheduled">
+            <span className="flex items-center gap-1.5">
+              <CalendarClock className="h-3.5 w-3.5" />
+              Planifiées
+            </span>
+          </SelectItem>
+          <SelectItem value="sandbox">
+            <span className="flex items-center gap-1.5">
+              <MousePointerClick className="h-3.5 w-3.5" />
+              Sandbox
+            </span>
+          </SelectItem>
         </SelectContent>
       </Select>
 
