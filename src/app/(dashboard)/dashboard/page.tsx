@@ -23,7 +23,6 @@ import {
   FileText,
   Search,
   TrendingUp,
-  Sparkles,
   CheckCircle2,
 } from "lucide-react";
 import {
@@ -221,8 +220,8 @@ function NextActionCard({
             </p>
           </div>
 
-          {/* CTA (si pertinent) */}
-          {ctaLabel && ctaHref && (
+          {/* CTA (si pertinent) — ternaire explicite selon rendering-conditional-render */}
+          {ctaLabel !== null && ctaHref !== null ? (
             <Link
               href={ctaHref}
               style={{
@@ -247,7 +246,7 @@ function NextActionCard({
             >
               {ctaLabel}
             </Link>
-          )}
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -271,12 +270,17 @@ export default function DashboardPage() {
   });
 
   // ── Queries pipeline (chargées indépendamment, montrent 0 si pas encore prêtes) ──
-  const { data: draftCount,     isLoading: loadingPipeline } = useCountApplication({ where: { status: "draft"     } });
-  const { data: readyCount     } = useCountApplication({ where: { status: "ready"     } });
-  const { data: sentCount      } = useCountApplication({ where: { status: "sent"      } });
-  const { data: interviewCount } = useCountApplication({ where: { status: "interview" } });
-  const { data: rejectedCount  } = useCountApplication({ where: { status: "rejected"  } });
-  const { data: acceptedCount  } = useCountApplication({ where: { status: "accepted"  } });
+  // On capture isLoading sur TOUTES les queries pour ne passer isLoading=false
+  // au PipelineWidget que lorsque l'ensemble des 6 statuts est résolu.
+  const { data: draftCount,     isLoading: lDraft     } = useCountApplication({ where: { status: "draft"     } });
+  const { data: readyCount,     isLoading: lReady     } = useCountApplication({ where: { status: "ready"     } });
+  const { data: sentCount,      isLoading: lSent      } = useCountApplication({ where: { status: "sent"      } });
+  const { data: interviewCount, isLoading: lInterview } = useCountApplication({ where: { status: "interview" } });
+  const { data: rejectedCount,  isLoading: lRejected  } = useCountApplication({ where: { status: "rejected"  } });
+  const { data: acceptedCount,  isLoading: lAccepted  } = useCountApplication({ where: { status: "accepted"  } });
+
+  // Vrai tant qu'au moins un des 6 compteurs du pipeline est en cours de chargement
+  const loadingPipeline = lDraft || lReady || lSent || lInterview || lRejected || lAccepted;
 
   // Skeleton si les données principales ne sont pas encore chargées
   const isLoading = loadingOffers || loadingApps || loadingSearches || loadingRecentOffers;
