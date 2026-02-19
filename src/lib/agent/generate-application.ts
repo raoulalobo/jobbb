@@ -23,6 +23,10 @@ export interface ApplicationProfile {
   title: string;
   summary?: string | null;
   location?: string | null;
+  /** Numéro de téléphone du candidat (optionnel, affiché dans l'en-tête du CV) */
+  phone?: string | null;
+  /** Email du candidat (depuis session.user.email, affiché dans l'en-tête du CV) */
+  email?: string | null;
   skills: string[];
   /** Compétences comportementales : leadership, travail d'équipe, etc. */
   softSkills: string[];
@@ -137,6 +141,8 @@ export async function generateApplication(
   const profileContext = `
 Titre professionnel : ${profile.title}
 Localisation : ${profile.location ?? "Non renseignee"}
+Telephone : ${profile.phone ?? "Non renseigne"}
+Email : ${profile.email ?? "Non renseigne"}
 Resume : ${profile.summary ?? "Non renseigne"}
 Competences techniques : ${profile.skills.length > 0 ? profile.skills.join(", ") : "Non renseignees"}
 Competences comportementales : ${profile.softSkills.length > 0 ? profile.softSkills.join(", ") : "Non renseignees"}
@@ -162,14 +168,34 @@ ${offer.description}`.trim();
   );
 
   // Appel unique a Claude : genere CV + lettre en une seule requete
+  // Le system message definit le role ADAPTATIF (pas creatif) et les regles anti-hallucination
   const response = await client.messages.create({
     model: GENERATION_MODEL,
     max_tokens: 4096,
+    // Message systeme : role adaptatif strict + regles absolues anti-invention
+    system: `Tu es un expert en adaptation de candidatures professionnelles.
+
+Ton role est d'adapter (PAS creer) le CV et la lettre de motivation d'un candidat
+pour maximiser ses chances sur une offre specifique.
+
+REGLE ABSOLUE — Tu ne dois JAMAIS :
+- Inventer des competences techniques ou comportementales absentes du profil
+- Ajouter des certifications, formations ou experiences non mentionnees
+- Creer des projets, realisations ou chiffres qui n'y figurent pas
+- Embellir les descriptions au-dela de ce que le profil indique
+
+Tu dois UNIQUEMENT :
+- Identifier les exigences cles de l'offre et les comparer aux competences reelles du candidat
+- Selectionner et reordonner les elements du profil selon leur pertinence pour CE poste
+- Adapter le vocabulaire pour qu'il resonne avec la description de l'offre
+- Rediger le resume en restant strictement fidele aux informations du profil
+
+Si une competence requise par l'offre n'est pas dans le profil du candidat,
+ne l'invente pas — mets en avant ce qui est reellement la et qui s'en approche le plus.`,
     messages: [
       {
         role: "user",
-        content: `Tu es un expert en recrutement et redaction de candidatures professionnelles.
-Genere un CV adapte ET une lettre de motivation personnalisee pour cette candidature.
+        content: `Genere un CV adapte ET une lettre de motivation personnalisee pour cette candidature.
 
 PROFIL DU CANDIDAT :
 ${profileContext}
@@ -177,6 +203,12 @@ ${profileContext}
 OFFRE D'EMPLOI CIBLEE :
 ${offerContext}
 
+ETAPE 1 — ANALYSE (avant de generer) :
+1. Identifie les 3 a 5 exigences cles de l'offre (competences, experiences, contexte)
+2. Trouve dans le profil les elements qui y correspondent REELLEMENT
+3. Note les ecarts : si une exigence est absente du profil, ne l'invente pas
+
+ETAPE 2 — GENERATION :
 Reponds UNIQUEMENT en JSON avec exactement ce format (pas de texte avant ni apres) :
 {
   "cvContent": "# CV en markdown...",
@@ -184,18 +216,19 @@ Reponds UNIQUEMENT en JSON avec exactement ce format (pas de texte avant ni apre
 }
 
 Regles pour le CV :
-- Met en avant les competences et experiences les plus pertinentes pour CE poste
+- Selectionne UNIQUEMENT les competences presentes dans le profil, ordonnees par pertinence pour l'offre
 - Structure : Informations, Resume, Competences cles, Experiences, Formation, Certifications (si presentes)
-- Adapte le resume professionnel pour correspondre au poste vise
-- Inclus les certifications si elles sont pertinentes pour le poste
+- Redige le resume en restant fidele au profil existant — pas de reformulation inventee
+- Inclus les certifications UNIQUEMENT si elles figurent dans le profil ET sont pertinentes
 - Format markdown propre avec titres et listes
 
 Regles pour la lettre de motivation :
 - Personnalisee pour l'entreprise ET le poste (cite le nom de l'entreprise, le poste)
 - Ton professionnel et enthousiaste
 - 3 a 4 paragraphes : accroche, valeur apportee, motivation specifique, conclusion
-- Met en avant 2-3 competences/experiences directement liees a l'offre
-- Integre naturellement 1-2 competences comportementales (soft skills) si pertinentes
+- Justifie la candidature avec des elements concrets et reels du profil (experiences, competences, certifications)
+- N'affirme jamais que le candidat maitrise quelque chose qui n'est pas dans son profil
+- Integre naturellement 1 a 2 soft skills du profil si pertinentes
 - Format markdown, longueur ideale : 250-350 mots
 
 Les deux documents doivent etre en francais.`,

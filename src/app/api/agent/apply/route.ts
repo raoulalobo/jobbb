@@ -115,13 +115,49 @@ export async function POST(request: NextRequest) {
       title: profile.title,
       summary: profile.summary,
       location: profile.location,
+      // Telephone depuis le profil BDD (champ optionnel)
+      phone: profile.phone ?? null,
+      // Email depuis la session Better Auth (toujours disponible apres la verification ligne 49)
+      email: session.user.email,
       skills: Array.isArray(profile.skills) ? (profile.skills as string[]) : [],
       softSkills: Array.isArray(profile.softSkills) ? (profile.softSkills as string[]) : [],
+      // Transformation explicite startDate + endDate → dates (format unifie "Jan 2022 - Présent")
+      // La route /api/cv/parse stocke { startDate, endDate } separes,
+      // alors qu'ApplicationProfile attend { dates: string } fusionne.
+      // Le cast direct causait dates=undefined (bug silencieux).
       experiences: Array.isArray(profile.experiences)
-        ? (profile.experiences as ApplicationProfile["experiences"])
+        ? (profile.experiences as Array<{
+            company: string;
+            title: string;
+            startDate?: string;
+            endDate?: string;
+            dates?: string;
+            description?: string;
+          }>).map((e) => ({
+            company: e.company,
+            title: e.title,
+            // Priorite : dates deja fusionne > startDate + endDate > startDate seul > chaine vide
+            dates: e.dates ?? (e.startDate && e.endDate
+              ? `${e.startDate} - ${e.endDate}`
+              : e.startDate ?? ""),
+            description: e.description,
+          }))
         : [],
+      // Meme transformation pour la formation (meme bug potentiel)
       education: Array.isArray(profile.education)
-        ? (profile.education as ApplicationProfile["education"])
+        ? (profile.education as Array<{
+            school: string;
+            degree: string;
+            startDate?: string;
+            endDate?: string;
+            dates?: string;
+          }>).map((e) => ({
+            school: e.school,
+            degree: e.degree,
+            dates: e.dates ?? (e.startDate && e.endDate
+              ? `${e.startDate} - ${e.endDate}`
+              : e.startDate ?? ""),
+          }))
         : [],
       certifications: Array.isArray(profile.certifications)
         ? (profile.certifications as ApplicationProfile["certifications"])
