@@ -33,6 +33,10 @@ interface SearchConfigCardProps {
   onLaunchSearch: (id: string) => void;
   /** Indique si cette config est en cours de lancement (gere par useMutation.isPending) */
   isLaunching?: boolean;
+  /** Indique si le toggle actif/inactif est en attente pour cette card specifiquement */
+  isToggling?: boolean;
+  /** Indique si la suppression est en cours pour cette card specifiquement */
+  isDeleting?: boolean;
 }
 
 export function SearchConfigCard({
@@ -41,6 +45,8 @@ export function SearchConfigCard({
   onToggleActive,
   onLaunchSearch,
   isLaunching = false,
+  isToggling = false,
+  isDeleting = false,
 }: SearchConfigCardProps) {
   // Etat Zustand : ouverture du formulaire d'edition
   const openEditForm = useSearchConfigStore((s) => s.actions.openEditForm);
@@ -123,21 +129,26 @@ export function SearchConfigCard({
             {isLaunching ? "Recherche..." : "Lancer"}
           </Button>
 
-          {/* Toggle actif/inactif */}
+          {/* Toggle actif/inactif — spinner pendant la mutation */}
           <Button
             size="sm"
             variant="outline"
             onClick={() => onToggleActive(config.id, !config.isActive)}
+            disabled={isToggling}
           >
-            {config.isActive ? (
+            {isToggling ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : config.isActive ? (
               <PowerOff className="mr-1 h-4 w-4" />
             ) : (
               <Power className="mr-1 h-4 w-4" />
             )}
-            {config.isActive ? "Desactiver" : "Activer"}
+            {isToggling
+              ? config.isActive ? "Desactivation..." : "Activation..."
+              : config.isActive ? "Desactiver" : "Activer"}
           </Button>
 
-          {/* Editer */}
+          {/* Editer — action Zustand synchrone, pas de spinner */}
           <Button
             size="sm"
             variant="ghost"
@@ -146,13 +157,16 @@ export function SearchConfigCard({
             <Pencil className="h-4 w-4" />
           </Button>
 
-          {/* Supprimer */}
+          {/* Supprimer — spinner a la place de la corbeille pendant la mutation */}
           <Button
             size="sm"
             variant="ghost"
             onClick={() => onDelete(config.id)}
+            disabled={isDeleting}
           >
-            <Trash2 className="h-4 w-4 text-destructive" />
+            {isDeleting
+              ? <Loader2 className="h-4 w-4 animate-spin text-destructive" />
+              : <Trash2 className="h-4 w-4 text-destructive" />}
           </Button>
         </div>
       </CardContent>

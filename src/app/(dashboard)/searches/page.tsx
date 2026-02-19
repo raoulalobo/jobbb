@@ -93,6 +93,8 @@ export default function SearchesPage() {
         formData.id ? "Recherche mise a jour" : "Recherche creee"
       );
       queryClient.invalidateQueries({ queryKey: ["searchConfigs"] });
+      // Invalider aussi les queries ZenStack (dashboard, compteurs, etc.)
+      queryClient.invalidateQueries({ queryKey: ["zenstack", "SearchConfig"] });
       closeForm();
     },
     onError: (error: Error) => {
@@ -114,13 +116,16 @@ export default function SearchesPage() {
     onSuccess: () => {
       toast.success("Recherche supprimee");
       queryClient.invalidateQueries({ queryKey: ["searchConfigs"] });
+      // Invalider aussi les queries ZenStack (dashboard, compteurs, etc.)
+      queryClient.invalidateQueries({ queryKey: ["zenstack", "SearchConfig"] });
     },
     onError: (error: Error) => {
       toast.error(error.message);
     },
   });
 
-  // Mutation : toggle actif/inactif
+  // Mutation : toggle actif/inactif avec update optimiste
+  // Pattern : onMutate → update cache local immédiatement → rollback si erreur API
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const res = await fetch("/api/model/searchConfig/update", {
@@ -134,11 +139,41 @@ export default function SearchesPage() {
       if (!res.ok) throw new Error("Erreur lors de la mise a jour");
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["searchConfigs"] });
+
+    // Étape 1 : avant l'appel API, mettre à jour le cache local immédiatement
+    // → la card reflète le nouvel état sans attendre la réponse réseau
+    onMutate: async ({ id, isActive }) => {
+      // Annuler tout refetch en cours pour éviter qu'il écrase l'update optimiste
+      await queryClient.cancelQueries({ queryKey: ["searchConfigs"] });
+
+      // Sauvegarder l'état précédent pour le rollback éventuel
+      const previousConfigs = queryClient.getQueryData(["searchConfigs"]);
+
+      // Mettre à jour le cache local : seule la config concernée est modifiée
+      queryClient.setQueryData(
+        ["searchConfigs"],
+        (old: (SearchConfigFormData & { id: string })[] | undefined) =>
+          old?.map((c) => (c.id === id ? { ...c, isActive } : c)) ?? []
+      );
+
+      // Retourner le contexte pour permettre le rollback dans onError
+      return { previousConfigs };
     },
-    onError: (error: Error) => {
+
+    // Étape 2 (si erreur) : annuler l'update optimiste et restaurer l'état précédent
+    onError: (error: Error, _variables, context) => {
+      if (context?.previousConfigs) {
+        queryClient.setQueryData(["searchConfigs"], context.previousConfigs);
+      }
       toast.error(error.message);
+    },
+
+    // Étape 3 : synchroniser avec le serveur, que la mutation réussisse ou échoue
+    // onSettled remplace onSuccess pour invalider dans les deux cas
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["searchConfigs"] });
+      // Invalider aussi les queries ZenStack (dashboard, compteurs, etc.)
+      queryClient.invalidateQueries({ queryKey: ["zenstack", "SearchConfig"] });
     },
   });
 
@@ -204,6 +239,8 @@ export default function SearchesPage() {
               }
               onLaunchSearch={(id) => launchMutation.mutate(id)}
               isLaunching={launchMutation.isPending && launchMutation.variables === config.id}
+              isToggling={toggleMutation.isPending && toggleMutation.variables?.id === config.id}
+              isDeleting={deleteMutation.isPending && deleteMutation.variables === config.id}
             />
           ))}
         </div>

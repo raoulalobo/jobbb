@@ -1,6 +1,6 @@
 "use client";
 
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Sidebar } from "./Sidebar";
 import { useUiStore } from "@/lib/stores/ui-store";
 
@@ -18,6 +18,8 @@ export function MobileNav() {
   return (
     <Sheet open={isSidebarOpen} onOpenChange={setSidebarOpen}>
       <SheetContent side="left" className="w-64 p-0">
+        {/* Titre masqué visuellement — requis par Radix pour l'accessibilité screen reader */}
+        <SheetTitle className="sr-only">Navigation</SheetTitle>
         <Sidebar />
       </SheetContent>
     </Sheet>
