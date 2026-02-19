@@ -9,12 +9,20 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
 
   /**
-   * Exclure @react-pdf/renderer du bundling Turbopack/Webpack côté serveur.
+   * Exclure ces packages du bundling Turbopack/Webpack côté serveur.
    * Sans cette config, Turbopack tente de bundler les dépendances Node natives
-   * de react-pdf (canvas, fontkit, etc.) ce qui cause des erreurs de build.
-   * Ces packages sont chargés dynamiquement par Node.js au runtime.
+   * ce qui cause des erreurs ESM/CJS au runtime.
+   *
+   * @react-pdf/renderer : dépendances Node natives (canvas, fontkit, etc.)
+   * @anthropic-ai/sdk : package CJS avec export ESM conditionnel — Turbopack
+   *   mal initialise les ressources importées via "import * as API from ./resources/index.mjs"
+   *   → API.Messages est undefined → client.messages.create() jette
+   *   "Cannot read properties of undefined (reading 'create')"
    */
-  serverExternalPackages: ["@react-pdf/renderer"],
+  serverExternalPackages: [
+    "@react-pdf/renderer",
+    "@anthropic-ai/sdk", // évite le bundling Turbopack du SDK Anthropic (init ESM incomplète)
+  ],
 };
 
 export default nextConfig;
