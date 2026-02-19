@@ -6,6 +6,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 /**
  * Rôle : Page d'inscription — design harmonisé avec la homepage
@@ -184,14 +185,13 @@ export default function RegisterPage() {
             />
           </div>
 
-          {/* Champ mot de passe */}
+          {/* Champ mot de passe avec toggle afficher/masquer */}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
             <Label htmlFor="password" className="text-[#0A0F1E] font-medium text-sm">
               Mot de passe
             </Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               placeholder="Minimum 8 caractères"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -202,14 +202,13 @@ export default function RegisterPage() {
             />
           </div>
 
-          {/* Confirmation du mot de passe */}
+          {/* Confirmation du mot de passe avec toggle afficher/masquer */}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
             <Label htmlFor="confirmPassword" className="text-[#0A0F1E] font-medium text-sm">
               Confirmer le mot de passe
             </Label>
-            <Input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               placeholder="Retapez votre mot de passe"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

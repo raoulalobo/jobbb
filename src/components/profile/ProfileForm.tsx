@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Save, Loader2, Camera } from "lucide-react";
+import { Save, Loader2, Camera, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import {
   type EducationItem,
 } from "./ExperienceList";
 import { CertificationList, type CertificationItem } from "./CertificationList";
+import type { ParsedProfile } from "@/app/api/cv/parse/route";
 
 /**
  * Role : Formulaire complet du profil candidat
@@ -68,6 +70,9 @@ export function ProfileForm() {
 
   // Etat local du formulaire (isole a ce composant, useState acceptable)
   const [profile, setProfile] = useState<ProfileData>(DEFAULT_PROFILE);
+
+  // Ref vers l'input file caché pour déclencher l'ouverture du sélecteur natif
+  const cvInputRef = useRef<HTMLInputElement>(null);
 
   // Etat partage via Zustand : avatar preview et loading (utilise aussi par Header)
   const avatarPreview = useUiStore((s) => s.avatarPreview);
@@ -118,6 +123,51 @@ export function ProfileForm() {
       });
     }
   }, [existingProfile]);
+
+  /**
+   * Mutation : envoi du PDF à /api/cv/parse → Claude Haiku analyse le CV
+   * et retourne les données structurées pour pré-remplir le formulaire.
+   * linkedinEmail et linkedinPassword sont préservés (absents du CV).
+   */
+  const parseMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/cv/parse", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Erreur d'analyse du CV");
+
+      return json.data as ParsedProfile;
+    },
+    onSuccess: (parsed) => {
+      // Pré-remplit tous les champs extraits du CV — le candidat ajuste ensuite
+      // linkedinEmail et linkedinPassword sont intentionnellement exclus (non présents dans un CV)
+      setProfile((prev) => ({
+        ...prev,
+        title: parsed.title || prev.title,
+        location: parsed.location || prev.location,
+        phone: parsed.phone || prev.phone,
+        summary: parsed.summary || prev.summary,
+        skills: parsed.skills?.length ? parsed.skills : prev.skills,
+        softSkills: parsed.softSkills?.length ? parsed.softSkills : prev.softSkills,
+        experiences: parsed.experiences?.length ? parsed.experiences : prev.experiences,
+        education: parsed.education?.length ? parsed.education : prev.education,
+        certifications: parsed.certifications?.length ? parsed.certifications : prev.certifications,
+      }));
+      toast.success(
+        "CV analysé par l'IA — complétez les champs pour enrichir votre profil",
+        { duration: 5000 }
+      );
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erreur lors de l'analyse du CV");
+    },
+  });
 
   // Mutation pour sauvegarder le profil (creation ou mise a jour)
   const saveMutation = useMutation({
@@ -210,6 +260,17 @@ export function ProfileForm() {
       toast.error(error.message);
     },
   });
+
+  /**
+   * Handler : sélection d'un PDF → lance la mutation parseMutation
+   * Reset l'input pour permettre de re-sélectionner le même fichier
+   */
+  function handleCvUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) parseMutation.mutate(file);
+    // Reset pour autoriser la re-sélection du même fichier sans rechargement
+    e.target.value = "";
+  }
 
   // Handler : validation cote client + lancement de la mutation avatar
   function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -319,6 +380,44 @@ export function ProfileForm() {
         </CardContent>
       </Card>
 
+      {/* Zone d'import CV — point d'entrée principal pour les nouveaux candidats */}
+      {/* Positionné après l'avatar, avant les champs, car c'est la première action suggérée */}
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium">Importer votre CV</p>
+          <p className="text-xs text-muted-foreground">
+            L&apos;IA analyse votre PDF et pré-remplit les champs — vous complétez ensuite
+          </p>
+        </div>
+        {/* Input file caché — déclenché par le bouton via la ref */}
+        <input
+          ref={cvInputRef}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={handleCvUpload}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => cvInputRef.current?.click()}
+          disabled={parseMutation.isPending}
+        >
+          {parseMutation.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Analyse…
+            </>
+          ) : (
+            <>
+              <FileUp className="mr-2 h-4 w-4" />
+              Importer (PDF)
+            </>
+          )}
+        </Button>
+      </div>
+
       {/* Section : Informations generales */}
       <Card>
         <CardHeader>
@@ -400,12 +499,11 @@ export function ProfileForm() {
               />
             </div>
 
-            {/* Mot de passe LinkedIn */}
+            {/* Mot de passe LinkedIn avec toggle afficher/masquer */}
             <div className="space-y-2">
               <Label htmlFor="linkedinPassword">Mot de passe LinkedIn</Label>
-              <Input
+              <PasswordInput
                 id="linkedinPassword"
-                type="password"
                 value={profile.linkedinPassword}
                 onChange={(e) => updateField("linkedinPassword", e.target.value)}
                 placeholder="Mot de passe LinkedIn"
