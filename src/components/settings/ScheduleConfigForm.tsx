@@ -121,7 +121,7 @@ export function ScheduleConfigForm({
   // Mutation : upsert de la ScheduleConfig (create si inexistante, update sinon)
   const upsertMutation = useUpsertScheduleConfig({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ScheduleConfig"] });
+      queryClient.invalidateQueries({ queryKey: ["zenstack", "ScheduleConfig"] });
       toast.success("Planification enregistree");
     },
     onError: () => {

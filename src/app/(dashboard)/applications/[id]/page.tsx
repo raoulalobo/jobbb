@@ -201,10 +201,12 @@ function ApplicationDetailContent({ application }: ApplicationDetailContentProps
   const [notes, setNotes] = useState(application.notes ?? "");
 
   // Mutation : sauvegarde du statut et des notes
+  // queryKey ZenStack = ["zenstack", "Application", ...] — le préfixe ["zenstack", "Application"]
+  // invalide toutes les queries du modèle Application (findMany, findUnique, count…)
   const updateMutation = useUpdateApplication({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["Application"] });
-      toast.success("Candidature mise a jour");
+      queryClient.invalidateQueries({ queryKey: ["zenstack", "Application"] });
+      toast.success("Candidature mise à jour");
     },
     onError: () => {
       toast.error("Erreur lors de la mise a jour");
@@ -327,7 +329,7 @@ function ApplicationDetailContent({ application }: ApplicationDetailContentProps
                 applicationId={application.id}
                 type="cv"
                 onSuccess={() =>
-                  queryClient.invalidateQueries({ queryKey: ["Application"] })
+                  queryClient.invalidateQueries({ queryKey: ["zenstack", "Application"] })
                 }
               />
             </CardHeader>
@@ -349,7 +351,7 @@ function ApplicationDetailContent({ application }: ApplicationDetailContentProps
                 applicationId={application.id}
                 type="letter"
                 onSuccess={() =>
-                  queryClient.invalidateQueries({ queryKey: ["Application"] })
+                  queryClient.invalidateQueries({ queryKey: ["zenstack", "Application"] })
                 }
               />
             </CardHeader>

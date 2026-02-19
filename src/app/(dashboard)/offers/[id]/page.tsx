@@ -119,7 +119,7 @@ export default function OfferDetailPage() {
     onSuccess: (json) => {
       toast.success(json.message);
       // Rafraichir le compteur de candidatures dans le dashboard
-      queryClient.invalidateQueries({ queryKey: ["Application"] });
+      queryClient.invalidateQueries({ queryKey: ["zenstack", "Application"] });
       // Rediriger vers la liste des candidatures
       router.push("/applications");
     },
