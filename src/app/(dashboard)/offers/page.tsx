@@ -165,7 +165,7 @@ export default function OffersPage() {
 
       {/* Etat vide : aucune offre trouvee */}
       {offers && offers.length === 0 && !isLoading && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[rgba(191,171,204,0.6)] py-12">
           <Search className="h-12 w-12 text-muted-foreground/50" />
           <h3 className="mt-4 text-lg font-medium">Aucune offre trouvee</h3>
           <p className="mt-1 text-sm text-muted-foreground">

@@ -7,7 +7,14 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        /*
+         * Carte brand — cohérente avec la Sidebar, le Header et les pages auth
+         * - Fond blanc explicite (bg-card = white en light mode)
+         * - Bordure lavande #BFABCC à 35% d'opacité : identique à Sidebar + Header
+         * - Ombre bleue subtile rgba(0,87,186,0.06) : légère profondeur brand
+         * - rounded-xl conservé (12px, équilibré pour les petites et grandes cards)
+         */
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border border-[rgba(191,171,204,0.35)] py-6 shadow-[0_2px_12px_rgba(0,87,186,0.06)]",
         className
       )}
       {...props}

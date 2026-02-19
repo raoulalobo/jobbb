@@ -60,7 +60,7 @@ export default function ApplicationsPage() {
 
       {/* Etat vide : aucune candidature generee */}
       {applications && applications.length === 0 && !isLoading && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[rgba(191,171,204,0.6)] py-16">
           <FilePlus className="h-12 w-12 text-muted-foreground/50" />
           <h3 className="mt-4 text-lg font-medium">Aucune candidature</h3>
           <p className="mt-1 text-sm text-muted-foreground">
