@@ -24,6 +24,8 @@ interface SearchFilters {
   searchQuery: string;
   // Filtre par origine : "scheduled" = Inngest auto | "sandbox" = manuel | null = toutes
   origin: string | null;
+  // Masquer les offres pour lesquelles une candidature existe deja (true par defaut)
+  hideApplied: boolean;
 }
 
 interface SearchState {
@@ -55,6 +57,8 @@ const DEFAULT_FILTERS: SearchFilters = {
   searchQuery: "",
   // null = afficher toutes les origines (pas de filtre actif)
   origin: null,
+  // true = masquer les offres pour lesquelles le candidat a deja postule
+  hideApplied: true,
 };
 
 export const useSearchStore = create<SearchState>()(

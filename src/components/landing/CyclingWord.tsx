@@ -16,7 +16,7 @@ import { useEffect, useState } from "react";
  */
 
 /** Séquence des mots à afficher (point ou ellipse inclus) */
-const WORDS = ["dormez.", "lisez.", "mangez.", "..."];
+const WORDS = ["dormez.", "lisez.", "mangez.", "....!!"];
 
 /** Durée d'affichage de chaque mot (ms) */
 const HOLD_MS = 2800;

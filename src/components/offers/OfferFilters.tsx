@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Bookmark, CalendarClock, MousePointerClick, X } from "lucide-react";
+import { Bookmark, CalendarClock, MousePointerClick, SendHorizontal, X } from "lucide-react";
 import { useSearchStore } from "@/lib/stores/search-store";
 
 /**
@@ -37,17 +37,21 @@ export function OfferFilters() {
   const onlyBookmarked = useSearchStore((s) => s.filters.onlyBookmarked);
   // Filtre par origine : "scheduled" (Inngest auto) | "sandbox" (manuel) | null (toutes)
   const origin = useSearchStore((s) => s.filters.origin);
+  // Masquer les offres postulees (true par defaut) — false = afficher toutes
+  const hideApplied = useSearchStore((s) => s.filters.hideApplied);
   const setFilter = useSearchStore((s) => s.actions.setFilter);
   const resetFilters = useSearchStore((s) => s.actions.resetFilters);
 
   // Determine si au moins un filtre est actif pour afficher le bouton "Effacer"
+  // !hideApplied = l'utilisateur a active l'affichage des offres postulees (hors default)
   const hasActiveFilters =
     searchQuery !== "" ||
     source !== null ||
     contractType !== null ||
     onlyNew ||
     onlyBookmarked ||
-    origin !== null;
+    origin !== null ||
+    !hideApplied;
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -139,6 +143,16 @@ export function OfferFilters() {
       >
         <Bookmark className="mr-1.5 h-4 w-4" />
         Favoris
+      </Button>
+
+      {/* Toggle "Postulées" — actif quand hideApplied=false (offres postulees visibles) */}
+      <Button
+        variant={!hideApplied ? "default" : "outline"}
+        size="sm"
+        onClick={() => setFilter("hideApplied", !hideApplied)}
+      >
+        <SendHorizontal className="mr-1.5 h-4 w-4" />
+        Postulées
       </Button>
 
       {/* Bouton "Effacer les filtres" — visible uniquement si un filtre est actif */}

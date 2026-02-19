@@ -36,6 +36,8 @@ export default function OffersPage() {
   const onlyBookmarked = useSearchStore((s) => s.filters.onlyBookmarked);
   // Filtre par origine de l'offre (Inngest planifie vs declenchement manuel sandbox)
   const origin = useSearchStore((s) => s.filters.origin);
+  // Masquer les offres postulees : true par defaut (offres avec candidature exclues)
+  const hideApplied = useSearchStore((s) => s.filters.hideApplied);
   const currentPage = useSearchStore((s) => s.currentPage);
   const pageSize = useSearchStore((s) => s.pageSize);
   const setPage = useSearchStore((s) => s.actions.setPage);
@@ -78,8 +80,16 @@ export default function OffersPage() {
       conditions.origin = origin;
     }
 
+    // Exclure les offres ayant deja une candidature (any status) pour cet utilisateur.
+    // Prisma filtre via la relation inverseApplication[] : NOT applications.some({})
+    if (hideApplied) {
+      conditions.NOT = {
+        applications: { some: {} },
+      };
+    }
+
     return conditions;
-  }, [source, contractType, onlyNew, onlyBookmarked, searchQuery, origin]);
+  }, [source, contractType, onlyNew, onlyBookmarked, searchQuery, origin, hideApplied]);
 
   // Query : liste des offres paginee avec filtres
   const { data: offers, isLoading } = useFindManyOffer({
