@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Bot } from "lucide-react";
+import { ArrowRight, Bot, LogIn, UserPlus } from "lucide-react";
 import { ConstellationBackground } from "@/components/landing/ConstellationBackground";
 import { CyclingWord } from "@/components/landing/CyclingWord";
 
@@ -122,32 +122,50 @@ export default function HomePage() {
               </span>
             </Link>
 
-            {/* Actions */}
-            <div className="flex items-center gap-3">
+            {/* Actions — texte sur sm+, icône seule sur mobile */}
+            <div className="flex items-center gap-2 sm:gap-3">
+
+              {/*
+               * Bouton Connexion :
+               *   - Mobile (<sm) : icône LogIn seule, padding carré compact
+               *   - sm+ : texte "Connexion", padding horizontal étendu
+               */}
               <Link
                 href="/login"
-                className="ja-nl"
+                className="ja-nl flex items-center justify-center p-2 sm:px-3.5 sm:py-2"
                 style={{
                   color: "#64748b", fontSize: "0.875rem",
-                  textDecoration: "none", padding: "0.5rem 0.875rem",
+                  textDecoration: "none", borderRadius: "8px",
                 }}
               >
-                Connexion
+                {/* Icône visible sur mobile uniquement */}
+                <LogIn size={18} className="sm:hidden" aria-hidden />
+                {/* Texte visible sur sm et plus */}
+                <span className="hidden sm:inline">Connexion</span>
               </Link>
+
+              {/*
+               * Bouton Commencer :
+               *   - Mobile (<sm) : icône UserPlus seule, padding carré compact
+               *   - sm+ : texte "Commencer" + flèche, padding horizontal étendu
+               */}
               <Link
                 href="/register"
-                className="ja-btn-p"
+                className="ja-btn-p flex items-center justify-center gap-1.5 p-2 sm:px-[1.125rem] sm:py-2"
                 style={{
                   backgroundColor: "var(--ja-blue)", color: "white",
-                  textDecoration: "none",
-                  padding: "0.5rem 1.125rem", borderRadius: "8px",
+                  textDecoration: "none", borderRadius: "8px",
                   fontSize: "0.875rem", fontWeight: 500,
-                  display: "inline-flex", alignItems: "center", gap: "0.375rem",
                   boxShadow: "0 2px 12px rgba(0,87,186,0.22)",
                 }}
               >
-                Commencer <ArrowRight size={13} />
+                {/* Icône visible sur mobile uniquement */}
+                <UserPlus size={18} className="sm:hidden" aria-hidden />
+                {/* Texte + flèche visibles sur sm et plus */}
+                <span className="hidden sm:inline">Commencer</span>
+                <ArrowRight size={13} className="hidden sm:inline" aria-hidden />
               </Link>
+
             </div>
           </nav>
         </header>
