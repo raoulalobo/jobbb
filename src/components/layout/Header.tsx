@@ -14,6 +14,7 @@ import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUiStore } from "@/lib/stores/ui-store";
+import { AgentStatusIndicator } from "@/components/layout/AgentStatusIndicator";
 
 /**
  * Rôle : En-tête du dashboard — Option B "Brand Cohérence"
@@ -76,8 +77,15 @@ export function Header() {
         <span className="sr-only">Ouvrir le menu</span>
       </Button>
 
-      {/* Espace flexible — pousse le menu avatar vers la droite */}
+      {/* Espace flexible — pousse l'indicateur agent et le menu avatar vers la droite */}
       <div className="flex-1" />
+
+      {/*
+       * Indicateur d'état de l'agent IA — persistant à la navigation
+       * Polling 2s si pending, 30s sinon (adaptatif via Tanstack Query)
+       * Source de vérité : table AgentRun en BDD
+       */}
+      <AgentStatusIndicator />
 
       {/* Menu profil utilisateur (dropdown) */}
       <DropdownMenu>

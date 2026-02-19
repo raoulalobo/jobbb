@@ -28,6 +28,7 @@ model User {
   applications  Application[]
   sessions      Session[]
   accounts      Account[]
+  agentRuns     AgentRun[]
 }
 
 model Profile {
@@ -103,6 +104,19 @@ model Application {
   updatedAt     DateTime @updatedAt()
 
   @@unique([userId, offerId])
+}
+
+model AgentRun {
+  id        String   @id() @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  status    String
+  label     String
+  result    Json?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt()
 }
 
 model ScheduleConfig {

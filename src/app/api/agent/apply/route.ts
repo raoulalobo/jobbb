@@ -18,9 +18,11 @@ import {
  *   2. Charge l'offre ciblee (verifie ownership)
  *   3. Charge le profil candidat (requis pour la generation)
  *   4. Verifie que le profil est suffisamment rempli (titre obligatoire)
- *   5. Genere CV + lettre via Claude Sonnet (generateApplication)
- *   6. Cree ou remplace l'Application en BDD (upsert sur userId + offerId)
- *   7. Retourne { data: { applicationId }, message: "..." }
+ *   5. Cree un AgentRun "pending" pour le feedback header en temps reel
+ *   6. Genere CV + lettre via Claude Sonnet (generateApplication)
+ *   7. Cree ou remplace l'Application en BDD (upsert sur userId + offerId)
+ *   8. Met a jour l'AgentRun en "success" ou "error"
+ *   9. Retourne { data: { applicationId }, message: "..." }
  *
  * Exemple d'appel :
  *   POST /api/agent/apply
@@ -30,10 +32,14 @@ import {
  * Interactions :
  *   - prisma.offer.findUnique : charge l'offre + verifie ownership
  *   - prisma.profile.findUnique : charge le profil du candidat
+ *   - prisma.agentRun.create/update : suivi en temps reel pour l'indicateur header
  *   - generateApplication() : appel Claude Sonnet pour generer CV + lettre
  *   - prisma.application.upsert : sauvegarde en BDD (evite les doublons)
  */
 export async function POST(request: NextRequest) {
+  // Declare agentRun hors du try pour pouvoir y acceder dans le catch
+  let agentRun: { id: string } | null = null;
+
   try {
     // 1. Verification de l'authentification via Better Auth
     const session = await auth.api.getSession({
@@ -92,6 +98,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 5. Creer un AgentRun "pending" pour l'indicateur en temps reel dans le header
+    // Label format : "Candidature — {titre offre} chez {entreprise}"
+    agentRun = await prisma.agentRun.create({
+      data: {
+        userId,
+        type: "application",
+        status: "pending",
+        label: `Candidature — ${offer.title} chez ${offer.company}`,
+      },
+    });
+
     // Construire le profil dans le format attendu par generateApplication
     // Les champs JSON (skills, experiences, education) sont stockes en JSON dans Prisma
     const applicationProfile: ApplicationProfile = {
@@ -115,7 +132,7 @@ export async function POST(request: NextRequest) {
       `[API] Generation candidature pour user=${userId}, offre="${offer.title}" chez "${offer.company}"`
     );
 
-    // 5. Generer CV + lettre de motivation via Claude Sonnet
+    // 6. Generer CV + lettre de motivation via Claude Sonnet
     const { cvContent, letterContent } = await generateApplication(
       applicationProfile,
       {
@@ -128,7 +145,7 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // 6. Sauvegarder la candidature en BDD
+    // 7. Sauvegarder la candidature en BDD
     // Upsert : si une candidature existe deja pour cette offre, on la remplace
     const application = await prisma.application.upsert({
       where: {
@@ -157,6 +174,16 @@ export async function POST(request: NextRequest) {
       `[API] Candidature sauvegardee : applicationId=${application.id}`
     );
 
+    // 8. Marquer l'AgentRun comme termine avec succes
+    // Le client verra le badge vert "Candidature generee" pendant 30s
+    await prisma.agentRun.update({
+      where: { id: agentRun.id },
+      data: {
+        status: "success",
+        result: { applicationId: application.id },
+      },
+    });
+
     return NextResponse.json({
       data: { applicationId: application.id },
       message: "Candidature generee avec succes. Consultez vos candidatures pour la voir.",
@@ -164,6 +191,15 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const err = error as Error;
     console.error("[API] Erreur generation candidature :", err.message);
+
+    // Marquer l'AgentRun comme erreur si il a ete cree
+    // Le client affichera un badge rouge persistant dans le header
+    if (agentRun?.id) {
+      await prisma.agentRun.update({
+        where: { id: agentRun.id },
+        data: { status: "error", error: err.message },
+      });
+    }
 
     // Erreur de cle API Anthropic
     if (err.message.includes("ANTHROPIC_API_KEY")) {

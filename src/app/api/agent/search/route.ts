@@ -18,9 +18,11 @@ import {
  *   2. Charge la SearchConfig depuis la BDD
  *   3. Charge le Profile pour recuperer les identifiants LinkedIn
  *   4. Verifie que les identifiants LinkedIn sont renseignes (erreur 400 sinon)
- *   5. Lance l'agent de scraping LinkedIn authentifie
- *   6. Stocke les offres en BDD avec deduplication (upsert sur userId + url)
- *   7. Retourne le nombre d'offres trouvees et nouvelles
+ *   5. Cree un AgentRun "pending" pour le feedback header en temps reel
+ *   6. Lance l'agent de scraping LinkedIn authentifie
+ *   7. Stocke les offres en BDD avec deduplication (upsert sur userId + url)
+ *   8. Met a jour l'AgentRun en "success" ou "error"
+ *   9. Retourne le nombre d'offres trouvees et nouvelles
  *
  * Exemple d'appel :
  *   POST /api/agent/search
@@ -30,10 +32,14 @@ import {
  * Interactions :
  *   - prisma.profile.findUnique : pour charger les identifiants LinkedIn
  *   - prisma.searchConfig.findUnique : pour charger la configuration de recherche
+ *   - prisma.agentRun.create/update : suivi en temps reel pour l'indicateur header
  *   - runSearchAgent() : lance le scraping LinkedIn authentifie
  *   - prisma.offer.upsert : deduplication par userId + url
  */
 export async function POST(request: NextRequest) {
+  // Declare agentRun hors du try pour pouvoir y acceder dans le catch
+  let agentRun: { id: string } | null = null;
+
   try {
     // Verification de l'authentification via Better Auth
     const session = await auth.api.getSession({
@@ -94,6 +100,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Creer un AgentRun "pending" pour l'indicateur en temps reel dans le header
+    // Le client (AgentStatusIndicator) poll cet enregistrement toutes les 2s tant que pending
+    agentRun = await prisma.agentRun.create({
+      data: {
+        userId,
+        type: "scraping",
+        status: "pending",
+        label: `Scraping — ${searchConfig.name}`,
+      },
+    });
 
     // Construire les criteres de recherche avec les identifiants LinkedIn
     const criteria: SearchCriteria = {
@@ -189,6 +206,20 @@ export async function POST(request: NextRequest) {
       `[API] Stockage termine : ${newCount} nouvelles, ${updatedCount} mises a jour`
     );
 
+    // Marquer l'AgentRun comme termine avec succes
+    // Le client verra le badge vert "X nouvelles offres" pendant 30s
+    await prisma.agentRun.update({
+      where: { id: agentRun.id },
+      data: {
+        status: "success",
+        result: {
+          total: scrapedOffers.length,
+          new: newCount,
+          updated: updatedCount,
+        },
+      },
+    });
+
     return NextResponse.json({
       data: {
         total: scrapedOffers.length,
@@ -201,6 +232,15 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const err = error as Error;
     console.error("[API] Agent search error:", err.message);
+
+    // Marquer l'AgentRun comme erreur si il a ete cree
+    // Le client affichera un badge rouge persistant dans le header
+    if (agentRun?.id) {
+      await prisma.agentRun.update({
+        where: { id: agentRun.id },
+        data: { status: "error", error: err.message },
+      });
+    }
 
     // Message d'erreur specifique si la cle API n'est pas configuree
     if (err.message.includes("ANTHROPIC_API_KEY")) {

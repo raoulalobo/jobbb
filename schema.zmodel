@@ -45,6 +45,7 @@ model User {
   applications  Application[]
   sessions      Session[]
   accounts      Account[]
+  agentRuns     AgentRun[]
 
   // Policies d'acces : un utilisateur voit ses propres donnees, l'admin voit tout
   @@allow('read', auth() == this || auth().role == 'admin')
@@ -163,6 +164,35 @@ model Application {
   @@unique([userId, offerId])
 
   // Seul le proprietaire gere ses candidatures
+  @@allow('all', auth().id == userId)
+  @@allow('read', auth().role == 'admin')
+}
+
+/**
+ * Role : Enregistrement d'une execution de l'agent IA (scraping ou generation candidature)
+ * Relations : lie a un User
+ * Contient : type, statut, label lisible, resultat, message d'erreur
+ *
+ * Utilise par AgentStatusIndicator dans le header pour afficher l'etat en temps reel.
+ * Source de verite cote serveur — polling Tanstack Query (2s si pending, 30s sinon).
+ *
+ * Exemples :
+ *   type="scraping"     → label="Scraping — React Paris", result={ total: 12, new: 8, updated: 4 }
+ *   type="application"  → label="Candidature — Dev React chez Alma", result={ applicationId: "clxyz..." }
+ */
+model AgentRun {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "scraping" | "application"
+  status    String   // "pending" | "success" | "error"
+  label     String   // Ex: "Scraping — React Paris" | "Candidature — Dev React chez Alma"
+  result    Json?    // scraping: { total, new, updated } | application: { applicationId }
+  error     String?  // Message d'erreur si status = "error"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Seul le proprietaire peut voir/modifier ses runs ; l'admin peut lire
   @@allow('all', auth().id == userId)
   @@allow('read', auth().role == 'admin')
 }
