@@ -43,7 +43,10 @@ ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholde
 ENV DIRECT_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder"
 ENV AUTH_SECRET="placeholder_secret_minimum_32_characters_long"
 ENV BETTER_AUTH_URL="https://placeholder.onrender.com"
-ENV NEXT_PUBLIC_BETTER_AUTH_URL="https://placeholder.onrender.com"
+# NEXT_PUBLIC_BETTER_AUTH_URL intentionnellement absent :
+# c'est une var baked dans le bundle client au moment du build.
+# Si on met un placeholder ici, le client appelle placeholder.onrender.com → CORS.
+# Sans cette var, le fallback window.location.origin dans auth-client.ts prend le relais.
 ENV ANTHROPIC_API_KEY="placeholder_anthropic_key"
 ENV INNGEST_EVENT_KEY="placeholder_inngest_event_key"
 ENV INNGEST_SIGNING_KEY="placeholder_inngest_signing_key"
