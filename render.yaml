@@ -2,9 +2,10 @@
 # Render Blueprint — JobAgent
 # Documentation : https://render.com/docs/blueprint-spec
 #
-# Déploiement : un service web Node.js (Next.js)
-# Playwright est installé en build (conteneur persistant ≠ serverless)
-# ce qui permet au navigateur headless de fonctionner à runtime.
+# Déploiement : Docker (env: docker) via Dockerfile à la racine
+# L'image de base mcr.microsoft.com/playwright embarque toutes les
+# libs système Chromium (libgtk-4, libgraphene, GStreamer, libGLESv2…)
+# sans nécessiter sudo/su pendant le build.
 #
 # Variables marquées sync:false → à renseigner manuellement dans
 # le dashboard Render (Environment > Add Secret)
@@ -13,28 +14,13 @@
 services:
   - type: web
     name: jobagent
-    env: node
+    env: docker                # Utilise le Dockerfile à la racine du projet
     region: frankfurt          # Proche de Supabase eu-west-1
-    plan: starter              # 512 MB RAM — passer à "standard" si l'agent manque de mémoire
-
-    # ── Build ──────────────────────────────────────────────
-    # 1. npm install  → déclenche postinstall (npx zenstack generate)
-    # 2. playwright install chromium --with-deps → installe Chromium + libs système (libgtk, libnss...)
-    # 3. npm run build → next build
-    # --with-deps retiré : tente un "su" pour installer des paquets système → Authentication failure sur Render
-    # Render (Ubuntu) fournit déjà les libs système nécessaires à Chromium
-    buildCommand: npm install && npx playwright install chromium && npm run build
-
-    # ── Start ──────────────────────────────────────────────
-    startCommand: npm start
+    plan: starter              # 512 MB RAM — passer à "standard" si nécessaire
 
     # ── Variables d'environnement ──────────────────────────
     # sync:false = secret à saisir dans le dashboard Render, non versionné ici
     envVars:
-
-      # Node.js version (Render utilise Node 20 par défaut si non précisé)
-      - key: NODE_VERSION
-        value: "20"
 
       # --- Supabase (PostgreSQL) ---
       # URL PgBouncer (pooling) — utilisée par Prisma en runtime
