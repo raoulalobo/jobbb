@@ -2,11 +2,15 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { Provider as ZenStackProvider } from "@/lib/hooks";
 
 /**
- * Role : Provider Tanstack Query pour l'application
- * Initialise le QueryClient avec une configuration par defaut
+ * Role : Provider Tanstack Query + ZenStack pour l'application
+ * Initialise le QueryClient et configure l'endpoint ZenStack.
  * Utilise par : layout.tsx racine pour envelopper toute l'application
+ *
+ * Le Provider ZenStack fournit l'endpoint /api/model aux hooks generés.
+ * Sans lui, getHooksContext() utilise localhost:3000 → HTML au lieu de JSON en prod.
  *
  * Exemple :
  *   <QueryProvider>{children}</QueryProvider>
@@ -31,6 +35,11 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      {/* ZenStackProvider : injecte l'endpoint /api/model dans le contexte des hooks générés */}
+      <ZenStackProvider value={{ endpoint: "/api/model" }}>
+        {children}
+      </ZenStackProvider>
+    </QueryClientProvider>
   );
 }
