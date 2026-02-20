@@ -21,7 +21,9 @@ services:
     # 1. npm install  → déclenche postinstall (npx zenstack generate)
     # 2. playwright install chromium --with-deps → installe Chromium + libs système (libgtk, libnss...)
     # 3. npm run build → next build
-    buildCommand: npm install && npx playwright install chromium --with-deps && npm run build
+    # --with-deps retiré : tente un "su" pour installer des paquets système → Authentication failure sur Render
+    # Render (Ubuntu) fournit déjà les libs système nécessaires à Chromium
+    buildCommand: npm install && npx playwright install chromium && npm run build
 
     # ── Start ──────────────────────────────────────────────
     startCommand: npm start
