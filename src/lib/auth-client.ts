@@ -10,8 +10,15 @@ import { createAuthClient } from "better-auth/react";
  *   await authClient.signIn.email({ email, password })
  */
 export const authClient = createAuthClient({
-  // baseURL pointe vers NEXT_PUBLIC_BETTER_AUTH_URL si defini (production Vercel)
-  // En dev : undefined = meme origin (localhost:3000)
-  // Sur Vercel : definir NEXT_PUBLIC_BETTER_AUTH_URL=https://jobbb-brown.vercel.app
-  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+  // baseURL : utilise NEXT_PUBLIC_BETTER_AUTH_URL si defini au moment du build,
+  // sinon fallback sur l'origine courante (window.location.origin).
+  // Cela evite le fallback de better-auth sur localhost:3000 quand la variable
+  // n'est pas baked dans le bundle (ex : premiere deploy Render sans la variable).
+  //
+  // En dev           : NEXT_PUBLIC_BETTER_AUTH_URL non defini → window.location.origin = http://localhost:3000 ✓
+  // En prod (Render) : NEXT_PUBLIC_BETTER_AUTH_URL=https://jobagent-ccd9.onrender.com → utilise la valeur ✓
+  //                    OU non defini → window.location.origin = https://jobagent-ccd9.onrender.com ✓
+  baseURL:
+    process.env.NEXT_PUBLIC_BETTER_AUTH_URL ??
+    (typeof window !== "undefined" ? window.location.origin : undefined),
 });
